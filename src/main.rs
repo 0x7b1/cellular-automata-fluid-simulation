@@ -17,6 +17,14 @@ const HEIGHT: usize = 100;
 const N_NEIGHBORS: u8 = 8;
 const DELTA: f32 = 1.0;
 
+const MIN_FLOW: f32 = 0.01;
+const MAX_MASS: f32 = 1.0;
+const MAX_COMPRESS: f32 = 0.02;
+const MIN_MASS: f32 = 0.0001;
+const MIN_DRAW: f32 = 0.01;
+const MAX_DRAW: f32 = 1.1;
+const MAX_SPEED: f32 = 1.0;
+
 #[derive(Clone)]
 enum Elements {
     Brick,
@@ -62,7 +70,7 @@ impl Color {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialOrd, PartialEq, Ord, Eq)]
 enum CellElement {
     Empty,
     Wall,
@@ -70,18 +78,30 @@ enum CellElement {
 
     Water,
     Ground,
+    Air,
 }
 
+#[derive(Copy, Clone)]
 struct Cell {
     velocity: Vec2<f32>,
     population: f32,
     spread: f32,
     conductivity: f32,
+
     element: CellElement,
+
+    // mass: f32,
+    // new_mass: f32,
 
     // living: bool,
     // solid: bool,
 }
+
+struct CellWater {}
+
+struct CellAir {}
+
+struct CellGround {}
 
 impl Cell {
     fn empty() -> Self {
@@ -90,9 +110,8 @@ impl Cell {
             population: 0.0,
             spread: 0.0,
             conductivity: 1.0,
+
             element: CellElement::Empty,
-            // living: false,
-            // solid: false,
         }
     }
 
@@ -116,13 +135,16 @@ impl Cell {
             _ => {}
         }
     }
-
 }
 
 struct World {
     water: [i32; WIDTH],
     energy: [i32; WIDTH],
     ground: [i32; WIDTH],
+
+    mass: [[f32; WIDTH]; HEIGHT],
+    new_mass: [[f32; WIDTH]; HEIGHT],
+    blocks: [[Cell; WIDTH]; HEIGHT],
 }
 
 impl World {
@@ -131,53 +153,164 @@ impl World {
             energy: [0; WIDTH],
             water: [0; WIDTH],
             ground: [10; WIDTH],
+
+            mass: [[0.0; WIDTH]; HEIGHT],
+            new_mass: [[0.0; WIDTH]; HEIGHT],
+            blocks: [[Cell::empty(); WIDTH]; HEIGHT],
         };
 
         this
     }
 
+    fn get_stable_state(&self, total_mass: f32) -> f32 {
+        if total_mass <= 1.0 {
+            1.0
+        } else if total_mass < 2.0 * MAX_MASS + MAX_COMPRESS {
+            (MAX_MASS.powi(2) + total_mass * MAX_COMPRESS) / (MAX_MASS + MAX_COMPRESS)
+        } else {
+            (total_mass + MAX_COMPRESS) / 2.0
+        }
+    }
+
     fn tick(&mut self) {
-        let mut dwater = [0; WIDTH];
-        let mut denergy = [0; WIDTH];
+        let mut flow = 0.0;
+        let mut remaining_mass = 0.0;
+        let mut blocks = self.blocks.clone();
+        let mut mass = self.mass.clone();
+        let mut new_mass = self.new_mass.clone();
 
-        let ground = self.ground;
-        let mut water = self.water;
-        let mut energy = self.energy;
+        for x in 1..WIDTH {
+            for y in 1..HEIGHT {
+                // Skip inert ground blocks
+                if blocks[x][y].element == CellElement::Ground {
+                    continue;
+                }
 
-        for x in 1..WIDTH - 1 {
-            // left force
-            if ground[x] + water[x] - energy[x] > ground[x - 1] + water[x - 1] + energy[x - 1] {
-                let flow = water[x].min(ground[x] + water[x] - energy[x] - ground[x - 1] - water[x - 1] - energy[x - 1]) / 4;
-                dwater[x - 1] += flow;
-                dwater[x] -= flow;
-                denergy[x - 1] += -energy[x - 1] / 2 - flow;
-            }
+                // Custom push-only flow
+                flow = 0.0;
+                remaining_mass = mass[x][y];
 
-            // right force
-            if ground[x] + water[x] + energy[x] > ground[x + 1] + water[x + 1] - energy[x + 1] {
-                let flow = water[x].min(ground[x] + water[x] + energy[x] - ground[x + 1] - water[x + 1] + energy[x + 1]) / 4;
-                dwater[x + 1] += flow;
-                dwater[x] -= flow;
-                denergy[x + 1] += -energy[x + 1] / 2 + flow;
+                if remaining_mass <= 0.0 {
+                    continue;
+                }
+
+                // The block bellow this one
+                if blocks[x][y + 1].element != CellElement::Ground {
+                    flow = self.get_stable_state(remaining_mass + mass[x][y + 1]) - mass[x][y + 1];
+                    if flow > MIN_FLOW {
+                        flow *= 0.5; // leads to smoother flow
+                    }
+                    flow = if flow <= 0.0 {
+                        0.0
+                    } else if flow >= remaining_mass.min(MAX_SPEED) {
+                        remaining_mass.min(MAX_SPEED)
+                    } else {
+                        flow
+                    };
+
+                    new_mass[x][y] -= flow;
+                    new_mass[x][y + 1] += flow;
+                    remaining_mass -= flow;
+                }
+
+                if remaining_mass <= 0.0 {
+                    continue;
+                }
+
+                // Left
+                if blocks[x - 1][y].element != CellElement::Ground {
+                    flow = mass[x][y] - mass[x - 1][y] / 4.0;
+                    if flow > MIN_FLOW {
+                        flow *= 0.5;
+                    }
+                    flow = if flow <= 0.0 {
+                        0.0
+                    } else if flow >= remaining_mass {
+                        remaining_mass
+                    } else {
+                        flow
+                    };
+
+                    new_mass[x][y] -= flow;
+                    new_mass[x - 1][y] += flow;
+                    remaining_mass -= flow;
+                }
+
+                if remaining_mass <= 0.0 {
+                    continue;
+                }
+
+                // Right
+                if blocks[x + 1][y].element != CellElement::Ground {
+                    flow = mass[x][y] - mass[x + 1][y] / 4.0;
+                    if flow > MIN_FLOW {
+                        flow *= 0.5;
+                    }
+
+                    flow = if flow <= 0.0 {
+                        0.0
+                    } else if flow >= remaining_mass {
+                        remaining_mass
+                    } else {
+                        flow
+                    };
+
+                    new_mass[x][y] -= flow;
+                    new_mass[x + 1][y] += flow;
+                    remaining_mass -= flow;
+                }
+
+                if remaining_mass <= 0.0 {
+                    continue;
+                }
+
+                // Up. Only compressed water flows upwards
+                if blocks[x][y - 1].element != CellElement::Ground {
+                    flow = remaining_mass - self.get_stable_state(remaining_mass + mass[x][y - 1]);
+                    if flow > MIN_FLOW {
+                        flow *= 0.5;
+                    }
+
+                    flow = if flow <= 0.0 {
+                        0.0
+                    } else if flow >= remaining_mass.min(MAX_SPEED) {
+                        remaining_mass.min(MAX_SPEED)
+                    } else {
+                        flow
+                    };
+
+                    new_mass[x][y] -= flow;
+                    new_mass[x][y - 1] += flow;
+                    remaining_mass -= flow;
+                }
             }
         }
 
-        for x in 1..WIDTH-1 {
-            water[x] += dwater[x];
-            energy[x] += denergy[x];
+        for x in 1..WIDTH {
+            for y in 1..HEIGHT {
+                if blocks[x][y].element == CellElement::Ground {
+                    continue;
+                }
+
+                if mass[x][y] > MIN_MASS {
+                    blocks[x][y].element = CellElement::Water;
+                } else {
+                    blocks[x][y].element = CellElement::Air;
+                }
+            }
         }
-        println!("\n");
 
-        self.water = water;
-        self.energy = energy;
+        self.mass = new_mass;
+        self.blocks = blocks;
     }
 
-    fn spawn_water(&mut self, x: f32) {
-        self.water[x as usize] += 5;
+    fn spawn_water(&mut self, x: usize, y: usize) {
+        self.mass[x][y] = 10.0;
+        self.blocks[x][y].element = CellElement::Water;
     }
 
-    fn spawn_ground(&mut self, x: f32) {
-        self.ground[x as usize] += 1;
+    fn spawn_ground(&mut self, x: usize, y: usize) {
+        self.blocks[x][y].element = CellElement::Ground;
     }
 
     fn render_line(&self, buff: &mut [u32], x: usize, mut y0: usize, mut y1: usize, color: Color) {
@@ -196,18 +329,24 @@ impl World {
         self.render_line(buff, 10, 10, 50, Color::Blue);
     }
 
+    fn get_water_color(&self, mass: f32) -> u32 {
+        Color::Blue.get_hex()
+    }
+
     fn render(&self, buff: &mut [u32]) {
-        let ground = self.ground.clone();
-        let water = self.water.clone();
+        let blocks = self.blocks.clone();
+        let mass = self.mass.clone();
 
-        for x in 0..WIDTH {
-            let ground_y0 = 0;
-            let ground_y1 = ground[x] as usize;
-            let water_y0 = ground_y1;
-            let water_y1 = water_y0 + water[x] as usize;
-
-            self.render_line(buff, x, ground_y0, ground_y1, Color::Red);
-            self.render_line(buff, x, water_y0, water_y1, Color::Blue);
+        for y in 1..HEIGHT {
+            for x in 1..WIDTH {
+                let current_cell = self.blocks[x][y];
+                buff[y * WIDTH + x] = match current_cell.element {
+                    CellElement::Water => self.get_water_color(mass[x][y]),
+                    CellElement::Air => Color::Black.get_hex(),
+                    CellElement::Ground => Color::Yellow.get_hex(),
+                    _ => 0,
+                }
+            }
         }
     }
 }
@@ -228,18 +367,18 @@ fn main() {
         panic!("{}", e);
     });
 
-    window.limit_update_rate(Some(std::time::Duration::from_micros(16600 * 2)));
+    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600 * 2)));
 
     while window.is_open() && !window.is_key_down(Key::Q) {
         if window.get_mouse_down(MouseButton::Left) {
-            window.get_mouse_pos(MouseMode::Discard).map(|(x, _)| {
-                world.spawn_water(x);
+            window.get_mouse_pos(MouseMode::Discard).map(|(x, y)| {
+                world.spawn_water(x as usize, y as usize);
             });
         }
 
         if window.get_mouse_down(MouseButton::Right) {
-            window.get_mouse_pos(MouseMode::Discard).map(|(x, _)| {
-                world.spawn_ground(x);
+            window.get_mouse_pos(MouseMode::Discard).map(|(x, y)| {
+                world.spawn_ground(x as usize, y as usize);
             });
         }
 
