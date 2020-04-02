@@ -12,34 +12,20 @@ use minifb::{
 };
 use vek::Vec2;
 
+const FRAME_DELAY: u64 = 0;
+// const FRAME_DELAY: u64 = 16600 * 2;
 const WIDTH: usize = 200;
 const HEIGHT: usize = 200;
 const N_NEIGHBORS: u8 = 8;
 const DELTA: f32 = 1.0;
 
 const MIN_FLOW: f32 = 0.01;
-const MAX_MASS: f32 = 1.0;
+const MAX_MASS: f32 = 3.0;
 const MAX_COMPRESS: f32 = 0.02;
 const MIN_MASS: f32 = 0.0001;
 const MIN_DRAW: f32 = 0.01;
 const MAX_DRAW: f32 = 1.1;
 const MAX_SPEED: f32 = 1.0;
-
-#[derive(Clone)]
-enum Elements {
-    Brick,
-    Water,
-    Empty,
-}
-
-#[derive(Clone)]
-enum LifeMode {
-    Cross,
-    Circle,
-    Fish,
-    Flower,
-    Galaxy,
-}
 
 #[derive(Clone, PartialEq)]
 enum Color {
@@ -51,6 +37,7 @@ enum Color {
     Cyan,
     Purple,
     Blue,
+    Desert,
 }
 
 impl Color {
@@ -66,46 +53,46 @@ impl Color {
             Cyan => 0x00ffff,
             Blue => 0x0000ff,
             Purple => 0xff00ff,
+            Desert => 0xccae62,
         }
     }
 }
 
-#[derive(Copy, Clone, PartialOrd, PartialEq, Ord, Eq)]
-enum CellElement {
-    Empty,
-    Wall,
-    Solid,
-
+#[derive(Copy, Clone, PartialOrd, PartialEq, Debug)]
+enum Cell {
     Water,
     Ground,
     Air,
 }
 
-#[derive(Copy, Clone)]
-struct Cell {
-    velocity: Vec2<f32>,
-    population: f32,
-    spread: f32,
-    conductivity: f32,
-
-    element: CellElement,
-    mass: f32,
-    // new_mass: f32,
-
-    // living: bool,
-    // solid: bool,
-}
-
 impl Cell {
     fn empty() -> Self {
-        Cell {
-            velocity: Vec2::zero(),
-            population: 0.0,
-            spread: 0.0,
-            conductivity: 1.0,
-            mass: 0.0,
+        Cell::Air
+    }
+}
 
-            element: CellElement::Air,
+#[derive(Copy, Clone)]
+struct Widget {
+    active: bool,
+    element: Cell,
+}
+
+impl Widget {
+    fn new(element: Cell) -> Self {
+        Widget {
+            active: false,
+            element,
+        }
+    }
+
+    fn toggle(&mut self) {
+        self.active = !self.active;
+    }
+
+    fn get_color(&self) -> Color {
+        match self.active {
+            true => Color::Red,
+            false => Color::Yellow,
         }
     }
 }
@@ -117,6 +104,9 @@ struct World {
 
     mass: [[f32; WIDTH]; HEIGHT],
     blocks: [[Cell; WIDTH]; HEIGHT],
+
+    widgets: Vec<Widget>,
+    selected_element: Cell,
 }
 
 impl World {
@@ -128,7 +118,14 @@ impl World {
 
             mass: [[0.0; WIDTH]; HEIGHT],
             blocks: [[Cell::empty(); WIDTH]; HEIGHT],
+            widgets: Vec::new(),
+            selected_element: Cell::Ground,
         };
+
+        this.widgets.push(Widget::new(Cell::Ground));
+        this.widgets.push(Widget::new(Cell::Water));
+        this.widgets.push(Widget::new(Cell::Air));
+        this.select_element(Cell::Ground);
 
         this
     }
@@ -146,7 +143,7 @@ impl World {
     fn tick(&mut self) {
         let mut flow = 0.0;
         let mut blocks = self.blocks.clone();
-        let mut mass = self.mass.clone();
+        let  mass = self.mass.clone();
         let mut new_mass = [[0.0; WIDTH]; HEIGHT];
         let mut current_mass = 0.0;
 
@@ -154,7 +151,7 @@ impl World {
         for x in 0..WIDTH {
             for y in 0..HEIGHT {
                 // Skip inert ground blocks
-                if blocks[x][y].element == CellElement::Ground {
+                if blocks[x][y] == Cell::Ground {
                     continue;
                 }
 
@@ -167,7 +164,7 @@ impl World {
                 }
 
                 // The block bellow this one
-                if blocks[x][y + 1].element != CellElement::Ground {
+                if blocks[x][y + 1] != Cell::Ground {
                     flow = self.get_stable_state(current_mass + mass[x][y + 1]) - mass[x][y + 1];
                     if flow > MIN_FLOW {
                         flow *= 0.5; // leads to smoother flow
@@ -190,7 +187,7 @@ impl World {
                 }
 
                 // Left
-                if blocks[x - 1][y].element != CellElement::Ground {
+                if blocks[x - 1][y] != Cell::Ground {
                     flow = mass[x][y] - mass[x - 1][y] / 4.0;
                     if flow > MIN_FLOW {
                         flow *= 0.5;
@@ -213,7 +210,7 @@ impl World {
                 }
 
                 // Right
-                if blocks[x + 1][y].element != CellElement::Ground {
+                if blocks[x + 1][y] != Cell::Ground {
                     flow = mass[x][y] - mass[x + 1][y] / 4.0;
                     if flow > MIN_FLOW {
                         flow *= 0.5;
@@ -237,7 +234,7 @@ impl World {
                 }
 
                 // Up. Only compressed water flows upwards
-                if blocks[x][y - 1].element != CellElement::Ground {
+                if blocks[x][y - 1] != Cell::Ground {
                     flow = current_mass - self.get_stable_state(current_mass + mass[x][y - 1]);
                     if flow >= MIN_FLOW {
                         flow *= 0.5;
@@ -261,15 +258,15 @@ impl World {
         for x in 0..WIDTH {
             for y in 0..HEIGHT {
                 // Skip ground blocks
-                if blocks[x][y].element == CellElement::Ground {
+                if blocks[x][y] == Cell::Ground {
                     continue;
                 }
 
                 // Flag/unflag water blocks
                 if mass[x][y] > MIN_MASS {
-                    blocks[x][y].element = CellElement::Water;
+                    blocks[x][y] = Cell::Water;
                 } else {
-                    blocks[x][y].element = CellElement::Air;
+                    blocks[x][y] = Cell::Air;
                 }
             }
         }
@@ -289,41 +286,90 @@ impl World {
         self.blocks = blocks;
     }
 
-    fn spawn_water(&mut self, x: usize, y: usize) {
-        // self.blocks[x][y] = CellWater::new(0.0);
+    fn draw_element(&mut self, x: usize, y: usize) {
+        match self.selected_element {
+            Cell::Water => {
+                self.blocks[x][y] = Cell::Water;
+                self.mass[x][y] = MAX_MASS;
+            }
+            Cell::Ground => {
+                self.blocks[x][y] = Cell::Ground;
+                self.blocks[x + 1][y] = Cell::Ground;
+                self.blocks[x - 1][y] = Cell::Ground;
+                self.blocks[x][y + 1] = Cell::Ground;
+                self.blocks[x][y - 1] = Cell::Ground;
+            }
+            Cell::Air => {
+                self.mass[x][y] = 0.0;
+                self.mass[x + 1][y] = 0.0;
+                self.mass[x - 1][y] = 0.0;
+                self.mass[x][y + 1] = 0.0;
+                self.mass[x][y - 1] = 0.0;
 
-        self.blocks[x][y].element = CellElement::Water;
-        self.mass[x][y] = MAX_MASS;
-    }
-
-    fn spawn_ground(&mut self, x: usize, y: usize) {
-        self.blocks[x][y].element = CellElement::Ground;
+            }
+            _ => (),
+        }
     }
 
     fn get_water_color(&self, mass: f32) -> u32 {
-        println!("{}", mass);
-        if mass < -0.5 { // MAX_MASS
-            // return Color::Red.get_hex();
-            return 0x70a1ff;
+        if mass < -0.5 {
+            return 0x34ace0;
         }
 
-        0x1e90ff
-        // Color::Yellow.get_hex()
+        0x227093
     }
 
     fn render(&self, buff: &mut [u32]) {
+        self.render_simulation(buff);
+        self.render_widgets(buff);
+    }
+
+    fn render_simulation(&self, buff: &mut [u32]) {
         let blocks = self.blocks.clone();
         let mass = self.mass.clone();
 
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
                 let current_cell = self.blocks[x][y];
-                buff[y * WIDTH + x] = match current_cell.element {
-                    CellElement::Water => self.get_water_color(mass[x][y]),
-                    CellElement::Air => Color::Black.get_hex(),
-                    CellElement::Ground => Color::White.get_hex(),
+                buff[y * WIDTH + x] = match current_cell {
+                    Cell::Water => self.get_water_color(mass[x][y]),
+                    Cell::Air => Color::Black.get_hex(),
+                    Cell::Ground => Color::Desert.get_hex(),
                     _ => 0,
                 }
+            }
+        }
+    }
+
+    fn render_widgets(&self, buff: &mut [u32]) {
+        let widgets = self.widgets.clone();
+        let mut x: usize = 5;
+        let y: usize = 5;
+        let square_length: usize = 5;
+        let padding: usize = 5;
+
+        for w in widgets {
+            self.render_rectangle(buff, Vec2::new(x, y), square_length, w.get_color());
+            x += square_length + padding;
+        }
+    }
+
+    fn render_rectangle(&self, buff: &mut [u32], point: Vec2<usize>, length: usize, color: Color) {
+        for y in point.y..point.y + length {
+            for x in point.x..point.x + length {
+                buff[y * WIDTH + x] = color.get_hex();
+            }
+        }
+    }
+
+    fn select_element(&mut self, cell_element: Cell) {
+        self.selected_element = cell_element;
+
+        for mut w in self.widgets.iter_mut() {
+            if w.element == cell_element {
+                w.active = true;
+            } else {
+                w.active = false;
             }
         }
     }
@@ -345,18 +391,23 @@ fn main() {
         panic!("{}", e);
     });
 
-    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600 * 2)));
+    window.limit_update_rate(Some(std::time::Duration::from_micros(FRAME_DELAY)));
 
     while window.is_open() && !window.is_key_down(Key::Q) {
+        window.get_keys_pressed(KeyRepeat::No).map(|keys| {
+            for t in keys {
+                match t {
+                    Key::Key1 => world.select_element(Cell::Ground),
+                    Key::Key2 => world.select_element(Cell::Water),
+                    Key::Key3 => world.select_element(Cell::Air),
+                    _ => (),
+                }
+            }
+        }).unwrap();
+
         if window.get_mouse_down(MouseButton::Left) {
             window.get_mouse_pos(MouseMode::Discard).map(|(x, y)| {
-                world.spawn_water(x as usize, y as usize);
-            });
-        }
-
-        if window.get_mouse_down(MouseButton::Right) {
-            window.get_mouse_pos(MouseMode::Discard).map(|(x, y)| {
-                world.spawn_ground(x as usize, y as usize);
+                world.draw_element(x as usize, y as usize);
             });
         }
 
