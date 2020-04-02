@@ -73,50 +73,15 @@ enum CellElement {
 }
 
 struct Cell {
-    velocity: Vec2<f32>,
-    population: f32,
-    spread: f32,
-    conductivity: f32,
     element: CellElement,
-
-    // living: bool,
-    // solid: bool,
 }
 
 impl Cell {
     fn empty() -> Self {
         Cell {
-            velocity: Vec2::zero(),
-            population: 0.0,
-            spread: 0.0,
-            conductivity: 1.0,
             element: CellElement::Empty,
-            // living: false,
-            // solid: false,
         }
     }
-
-    fn set_element(&mut self, element: CellElement) {
-        match element {
-            CellElement::Empty => {
-                self.velocity = Vec2::zero();
-                self.population = 0.0;
-            }
-            CellElement::Wall => {
-                self.velocity = Vec2::zero();
-                self.population = 0.0;
-                self.conductivity = 0.0;
-                self.population = 400.0;
-            }
-            CellElement::Water => {
-                self.velocity = Vec2::new(0.0, -0.9);
-                self.spread = 0.5;
-                self.population = 250.0;
-            }
-            _ => {}
-        }
-    }
-
 }
 
 struct World {
@@ -162,11 +127,10 @@ impl World {
             }
         }
 
-        for x in 1..WIDTH-1 {
+        for x in 1..WIDTH - 1 {
             water[x] += dwater[x];
             energy[x] += denergy[x];
         }
-        println!("\n");
 
         self.water = water;
         self.energy = energy;
@@ -206,7 +170,7 @@ impl World {
             let water_y0 = ground_y1;
             let water_y1 = water_y0 + water[x] as usize;
 
-            self.render_line(buff, x, ground_y0, ground_y1, Color::Red);
+            self.render_line(buff, x, ground_y0, ground_y1, Color::Yellow);
             self.render_line(buff, x, water_y0, water_y1, Color::Blue);
         }
     }
@@ -228,7 +192,7 @@ fn main() {
         panic!("{}", e);
     });
 
-    window.limit_update_rate(Some(std::time::Duration::from_micros(16600 * 2)));
+    // window.limit_update_rate(Some(std::time::Duration::from_micros(16600 * 2)));
 
     while window.is_open() && !window.is_key_down(Key::Q) {
         if window.get_mouse_down(MouseButton::Left) {
