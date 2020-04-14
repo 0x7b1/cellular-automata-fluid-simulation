@@ -16,8 +16,6 @@ const FRAME_DELAY: u64 = 0;
 // const FRAME_DELAY: u64 = 16600 * 2;
 const WIDTH: usize = 200;
 const HEIGHT: usize = 200;
-const N_NEIGHBORS: u8 = 8;
-const DELTA: f32 = 1.0;
 
 const MIN_FLOW: f32 = 0.01;
 const MAX_MASS: f32 = 3.0;
@@ -109,6 +107,10 @@ struct World {
     selected_element: Cell,
 }
 
+pub fn clamp<T: PartialOrd>(val: T, min: T, max: T) -> T {
+    if val < min { min } else { if val > max { max } else { val } }
+}
+
 impl World {
     fn new() -> Self {
         let mut this = Self {
@@ -143,7 +145,7 @@ impl World {
     fn tick(&mut self) {
         let mut flow = 0.0;
         let mut blocks = self.blocks.clone();
-        let  mass = self.mass.clone();
+        let mass = self.mass.clone();
         let mut new_mass = [[0.0; WIDTH]; HEIGHT];
         let mut current_mass = 0.0;
 
@@ -169,13 +171,8 @@ impl World {
                     if flow > MIN_FLOW {
                         flow *= 0.5; // leads to smoother flow
                     }
-                    flow = if flow <= 0.0 {
-                        0.0
-                    } else if flow >= current_mass.min(MAX_SPEED) {
-                        current_mass.min(MAX_SPEED)
-                    } else {
-                        flow
-                    };
+
+                    flow = clamp(flow,0.0, current_mass.min(MAX_SPEED));
 
                     new_mass[x][y] -= flow;
                     new_mass[x][y + 1] += flow;
@@ -192,13 +189,7 @@ impl World {
                     if flow > MIN_FLOW {
                         flow *= 0.5;
                     }
-                    flow = if flow <= 0.0 {
-                        0.0
-                    } else if flow >= current_mass {
-                        current_mass
-                    } else {
-                        flow
-                    };
+                    flow = clamp(flow,0.0, current_mass);
 
                     new_mass[x][y] -= flow;
                     new_mass[x - 1][y] += flow;
@@ -216,13 +207,7 @@ impl World {
                         flow *= 0.5;
                     }
 
-                    flow = if flow <= 0.0 {
-                        0.0
-                    } else if flow >= current_mass {
-                        current_mass
-                    } else {
-                        flow
-                    };
+                    flow = clamp(flow,0.0, current_mass);
 
                     new_mass[x][y] -= flow;
                     new_mass[x + 1][y] += flow;
@@ -240,13 +225,7 @@ impl World {
                         flow *= 0.5;
                     }
 
-                    flow = if flow <= 0.0 {
-                        1.0 // tweak this value better
-                    } else if flow >= current_mass.min(MAX_SPEED) {
-                        current_mass.min(MAX_SPEED)
-                    } else {
-                        flow
-                    };
+                    flow = clamp(flow,0.0, current_mass.min(MAX_SPEED));
 
                     new_mass[x][y] -= flow;
                     new_mass[x][y - 1] += flow;
@@ -291,6 +270,7 @@ impl World {
             Cell::Water => {
                 self.blocks[x][y] = Cell::Water;
                 self.mass[x][y] = MAX_MASS;
+                // self.mass[x][y] = MAX_MASS * 5.0;
             }
             Cell::Ground => {
                 self.blocks[x][y] = Cell::Ground;
@@ -305,7 +285,6 @@ impl World {
                 self.mass[x - 1][y] = 0.0;
                 self.mass[x][y + 1] = 0.0;
                 self.mass[x][y - 1] = 0.0;
-
             }
             _ => (),
         }
