@@ -9,6 +9,7 @@ use minifb::{
     MouseMode,
     MouseButton,
     KeyRepeat,
+    CursorStyle,
 };
 use vek::Vec2;
 
@@ -18,7 +19,8 @@ const WIDTH: usize = 200;
 const HEIGHT: usize = 200;
 
 const MIN_FLOW: f32 = 0.01;
-const MAX_MASS: f32 = 3.0;
+// const MAX_MASS: f32 = 1.0;
+const MAX_MASS: f32 = 10.0;
 const MAX_COMPRESS: f32 = 0.02;
 const MIN_MASS: f32 = 0.0001;
 const MIN_DRAW: f32 = 0.01;
@@ -101,6 +103,7 @@ struct World {
     ground: [i32; WIDTH],
 
     mass: [[f32; WIDTH]; HEIGHT],
+    new_mass: [[f32; WIDTH]; HEIGHT],
     blocks: [[Cell; WIDTH]; HEIGHT],
 
     widgets: Vec<Widget>,
@@ -108,7 +111,24 @@ struct World {
 }
 
 pub fn clamp<T: PartialOrd>(val: T, min: T, max: T) -> T {
-    if val < min { min } else { if val > max { max } else { val } }
+    if val < min {
+        min
+    } else {
+        if val > max {
+            max
+        } else {
+            val
+        }
+    }
+}
+
+pub fn lerp_range(x: f32, in_min: f32, in_max: f32, out_min: f32, out_max: f32) -> f32 {
+    (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+}
+
+#[test]
+fn test_lerp() {
+    assert_eq!(lerp_range(5.0, 0.0, 10.0, 0.0, 100.0), 50.0);
 }
 
 impl World {
@@ -119,6 +139,7 @@ impl World {
             ground: [10; WIDTH],
 
             mass: [[0.0; WIDTH]; HEIGHT],
+            new_mass: [[0.0; WIDTH]; HEIGHT],
             blocks: [[Cell::empty(); WIDTH]; HEIGHT],
             widgets: Vec::new(),
             selected_element: Cell::Ground,
@@ -126,7 +147,6 @@ impl World {
 
         this.widgets.push(Widget::new(Cell::Ground));
         this.widgets.push(Widget::new(Cell::Water));
-        this.widgets.push(Widget::new(Cell::Air));
         this.select_element(Cell::Ground);
 
         this
@@ -146,8 +166,9 @@ impl World {
         let mut flow = 0.0;
         let mut blocks = self.blocks.clone();
         let mass = self.mass.clone();
-        let mut new_mass = [[0.0; WIDTH]; HEIGHT];
-        let mut current_mass = 0.0;
+        let mut new_mass = self.new_mass.clone();
+        // let mut new_mass = [[0.0; WIDTH]; HEIGHT];
+        let mut remaining_mass;
 
         // Calculate and apply flow for each block
         for x in 0..WIDTH {
@@ -159,77 +180,78 @@ impl World {
 
                 // Custom push-only flow
                 flow = 0.0;
-                current_mass = mass[x][y];
+                remaining_mass = mass[x][y];
 
-                if current_mass <= 0.0 {
+                if remaining_mass <= 0.0 {
                     continue;
                 }
 
                 // The block bellow this one
                 if blocks[x][y + 1] != Cell::Ground {
-                    flow = self.get_stable_state(current_mass + mass[x][y + 1]) - mass[x][y + 1];
+                    flow = self.get_stable_state(remaining_mass + mass[x][y + 1]) - mass[x][y + 1];
                     if flow > MIN_FLOW {
                         flow *= 0.5; // leads to smoother flow
                     }
 
-                    flow = clamp(flow,0.0, current_mass.min(MAX_SPEED));
+                    flow = clamp(flow, 0.0, remaining_mass.min(MAX_SPEED));
 
                     new_mass[x][y] -= flow;
                     new_mass[x][y + 1] += flow;
-                    current_mass -= flow;
+                    remaining_mass -= flow;
                 }
 
-                if current_mass <= 0.0 {
+                if remaining_mass <= 0.0 {
                     continue;
                 }
 
                 // Left
                 if blocks[x - 1][y] != Cell::Ground {
-                    flow = mass[x][y] - mass[x - 1][y] / 4.0;
+                    // Equialize the amount of water in this block and its neighbor
+                    flow = (mass[x][y] - mass[x - 1][y]) / 4.0;
                     if flow > MIN_FLOW {
                         flow *= 0.5;
                     }
-                    flow = clamp(flow,0.0, current_mass);
+                    flow = clamp(flow, 0.0, remaining_mass);
 
                     new_mass[x][y] -= flow;
                     new_mass[x - 1][y] += flow;
-                    current_mass -= flow;
+                    remaining_mass -= flow;
                 }
 
-                if current_mass <= 0.0 {
+                if remaining_mass <= 0.0 {
                     continue;
                 }
 
                 // Right
                 if blocks[x + 1][y] != Cell::Ground {
-                    flow = mass[x][y] - mass[x + 1][y] / 4.0;
+                    flow = (mass[x][y] - mass[x + 1][y]) / 4.0;
                     if flow > MIN_FLOW {
                         flow *= 0.5;
                     }
 
-                    flow = clamp(flow,0.0, current_mass);
+                    flow = clamp(flow, 0.0, remaining_mass);
 
                     new_mass[x][y] -= flow;
                     new_mass[x + 1][y] += flow;
-                    current_mass -= flow;
+                    remaining_mass -= flow;
                 }
 
-                if current_mass <= 0.0 {
+                if remaining_mass <= 0.0 {
                     continue;
                 }
 
                 // Up. Only compressed water flows upwards
                 if blocks[x][y - 1] != Cell::Ground {
-                    flow = current_mass - self.get_stable_state(current_mass + mass[x][y - 1]);
+                    flow = remaining_mass - self.get_stable_state(remaining_mass + mass[x][y - 1]);
                     if flow >= MIN_FLOW {
                         flow *= 0.5;
                     }
 
-                    flow = clamp(flow,0.0, current_mass.min(MAX_SPEED));
+                    flow = clamp(flow, 0.0, remaining_mass.min(MAX_SPEED));
 
                     new_mass[x][y] -= flow;
                     new_mass[x][y - 1] += flow;
-                    current_mass -= flow;
+                    remaining_mass -= flow;
                 }
             }
         }
@@ -262,6 +284,7 @@ impl World {
         }
 
         self.mass = new_mass;
+        self.new_mass = new_mass;
         self.blocks = blocks;
     }
 
@@ -269,8 +292,8 @@ impl World {
         match self.selected_element {
             Cell::Water => {
                 self.blocks[x][y] = Cell::Water;
-                self.mass[x][y] = MAX_MASS;
-                // self.mass[x][y] = MAX_MASS * 5.0;
+                // self.mass[x][y] = MAX_MASS;
+                self.mass[x][y] = MAX_MASS * 5.0;
             }
             Cell::Ground => {
                 self.blocks[x][y] = Cell::Ground;
@@ -290,12 +313,22 @@ impl World {
         }
     }
 
-    fn get_water_color(&self, mass: f32) -> u32 {
-        if mass < -0.5 {
-            return 0x34ace0;
+    fn get_water_color(&self, mut mass: f32) -> u32 {
+        mass = clamp(mass, MIN_MASS, MAX_MASS);
+        let mut g = 50.0;
+        let mut r = 50.0;
+        let mut b;
+
+        if (mass < 1.0) {
+            b = lerp_range(mass, 0.01, 1.0, 255.0, 200.0);
+            r = lerp_range(mass, 0.01, 1.0, 240.0, 50.0);
+            r = clamp(r, 50.0, 240.0);
+            g = r;
+        } else {
+            b = lerp_range(mass, 1.0, 1.1, 90.0, 140.0);
         }
 
-        0x227093
+        (1 << 24) + ((r as u32) << 16) + ((g as u32) << 8) + b as u32
     }
 
     fn render(&self, buff: &mut [u32]) {
@@ -310,8 +343,10 @@ impl World {
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
                 let current_cell = self.blocks[x][y];
+
                 buff[y * WIDTH + x] = match current_cell {
                     Cell::Water => self.get_water_color(mass[x][y]),
+                    // Cell::Water => Color::Red.get_hex(),
                     Cell::Air => Color::Black.get_hex(),
                     Cell::Ground => Color::Desert.get_hex(),
                     _ => 0,
@@ -371,14 +406,19 @@ fn main() {
     });
 
     window.limit_update_rate(Some(std::time::Duration::from_micros(FRAME_DELAY)));
+    window.set_cursor_style(CursorStyle::Crosshair);
 
     while window.is_open() && !window.is_key_down(Key::Q) {
+
+        // if window.is_key_pressed(Key::F, KeyRepeat::No) {
+        //     println!("DOING THIS");
+        // }
+
         window.get_keys_pressed(KeyRepeat::No).map(|keys| {
             for t in keys {
                 match t {
                     Key::Key1 => world.select_element(Cell::Ground),
                     Key::Key2 => world.select_element(Cell::Water),
-                    Key::Key3 => world.select_element(Cell::Air),
                     _ => (),
                 }
             }
@@ -390,8 +430,16 @@ fn main() {
             });
         }
 
+        // window.get_scroll_wheel().map(|scroll| {
+        //     println!("-> {:?}", scroll);
+        // });
+
         world.tick();
         world.render(&mut buff);
+
+        // window.get_mouse_pos(MouseMode::Clamp).map(|(x, y)| {
+        //     buff[y as usize * WIDTH + x as usize] = Color::Red.get_hex();
+        // });
 
         window
             .update_with_buffer(&buff, WIDTH, HEIGHT)
