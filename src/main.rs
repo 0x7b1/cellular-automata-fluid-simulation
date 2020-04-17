@@ -162,6 +162,15 @@ impl World {
         }
     }
 
+    fn clear_map(&mut self) {
+        self.energy = [0; WIDTH];
+        self.water = [0; WIDTH];
+        self.ground = [10; WIDTH];
+        self.mass = [[0.0; WIDTH]; HEIGHT];
+        self.new_mass = [[0.0; WIDTH]; HEIGHT];
+        self.blocks = [[Cell::empty(); WIDTH]; HEIGHT];
+    }
+
     fn tick(&mut self) {
         let mut flow = 0.0;
         let mut blocks = self.blocks.clone();
@@ -190,7 +199,7 @@ impl World {
                 if blocks[x][y + 1] != Cell::Ground {
                     flow = self.get_stable_state(remaining_mass + mass[x][y + 1]) - mass[x][y + 1];
                     if flow > MIN_FLOW {
-                        flow *= 0.5; // leads to smoother flow
+                        flow *= 0.8; // leads to smoother flow
                     }
 
                     flow = clamp(flow, 0.0, remaining_mass.min(MAX_SPEED));
@@ -206,10 +215,10 @@ impl World {
 
                 // Left
                 if blocks[x - 1][y] != Cell::Ground {
-                    // Equialize the amount of water in this block and its neighbor
+                    // Equalize the amount of water in this block and its neighbor
                     flow = (mass[x][y] - mass[x - 1][y]) / 4.0;
                     if flow > MIN_FLOW {
-                        flow *= 0.5;
+                        flow *= 0.8;
                     }
                     flow = clamp(flow, 0.0, remaining_mass);
 
@@ -226,7 +235,7 @@ impl World {
                 if blocks[x + 1][y] != Cell::Ground {
                     flow = (mass[x][y] - mass[x + 1][y]) / 4.0;
                     if flow > MIN_FLOW {
-                        flow *= 0.5;
+                        flow *= 0.8;
                     }
 
                     flow = clamp(flow, 0.0, remaining_mass);
@@ -244,7 +253,7 @@ impl World {
                 if blocks[x][y - 1] != Cell::Ground {
                     flow = remaining_mass - self.get_stable_state(remaining_mass + mass[x][y - 1]);
                     if flow >= MIN_FLOW {
-                        flow *= 0.5;
+                        flow *= 0.8;
                     }
 
                     flow = clamp(flow, 0.0, remaining_mass.min(MAX_SPEED));
@@ -345,6 +354,7 @@ impl World {
                 let current_cell = self.blocks[x][y];
 
                 buff[y * WIDTH + x] = match current_cell {
+                    // Cell::Water => Color::Blue.get_hex(),
                     Cell::Water => self.get_water_color(mass[x][y]),
                     // Cell::Water => Color::Red.get_hex(),
                     Cell::Air => Color::Black.get_hex(),
@@ -419,6 +429,7 @@ fn main() {
                 match t {
                     Key::Key1 => world.select_element(Cell::Ground),
                     Key::Key2 => world.select_element(Cell::Water),
+                    Key::C => world.clear_map(),
                     _ => (),
                 }
             }
