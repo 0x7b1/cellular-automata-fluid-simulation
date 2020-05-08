@@ -397,6 +397,52 @@ impl World {
             }
         }
     }
+
+    fn rotate_canvas_anticlockwise(&mut self) {
+        let mut blocks = self.blocks;
+
+        // Processing each block one by one
+        for i in 0..WIDTH / 2 {
+
+            // Processing elements in group of 4 in the current square
+            for j in i..HEIGHT - i - 1 {
+                // Storing current cell in a temporal variable
+                let tmp_block = blocks[i][j];
+
+                // Move values from right to top
+                blocks[i][j] = blocks[j][HEIGHT - 1 - i];
+
+                // Move values from bottom to right
+                blocks[j][HEIGHT - 1 - i] = blocks[HEIGHT - 1 - i][HEIGHT - 1 - j];
+
+                // Move values from left to bottom
+                blocks[HEIGHT - 1 - i][HEIGHT - 1 - j] = blocks[HEIGHT - 1 - j][i];
+
+                // Assign temporal to left
+                blocks[HEIGHT - 1 - j][i] = tmp_block;
+            }
+        }
+
+        self.blocks = blocks;
+    }
+
+    fn rotate_canvas_clockwise(&mut self) {
+        let mut blocks = self.blocks;
+
+        // Traverse each cycle
+        for i in 0..WIDTH / 2 {
+            for j in i..HEIGHT - i - 1 {
+                // Swap elements of each cycle in clockwise direction
+                let tmp_block = blocks[i][j];
+                blocks[i][j] = blocks[HEIGHT - 1 - j][i];
+                blocks[HEIGHT - 1 - j][i] = blocks[HEIGHT - 1 - i][HEIGHT - 1 - j];
+                blocks[HEIGHT - 1 - i][HEIGHT - 1 - j] = blocks[j][HEIGHT - 1- i];
+                blocks[j][HEIGHT - 1 - i] = tmp_block;
+            }
+        }
+
+        self.blocks = blocks;
+    }
 }
 
 fn main() {
@@ -429,6 +475,8 @@ fn main() {
                 match t {
                     Key::Key1 => world.select_element(Cell::Ground),
                     Key::Key2 => world.select_element(Cell::Water),
+                    Key::E => world.rotate_canvas_anticlockwise(),
+                    Key::R => world.rotate_canvas_clockwise(),
                     Key::C => world.clear_map(),
                     _ => (),
                 }
