@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{BufReader, BufRead, Read};
 use std::path::Path;
+use rand::Rng;
 
 use minifb::{
     Key,
@@ -12,6 +13,7 @@ use minifb::{
     CursorStyle,
 };
 use vek::Vec2;
+use std::ops::Sub;
 
 const FRAME_DELAY: u64 = 0;
 // const FRAME_DELAY: u64 = 16600 * 2;
@@ -295,6 +297,8 @@ impl World {
         self.mass = new_mass;
         self.new_mass = new_mass;
         self.blocks = blocks;
+
+        // println!("TICK DONE");
     }
 
     fn draw_element(&mut self, x: usize, y: usize) {
@@ -436,8 +440,101 @@ impl World {
                 let tmp_block = blocks[i][j];
                 blocks[i][j] = blocks[HEIGHT - 1 - j][i];
                 blocks[HEIGHT - 1 - j][i] = blocks[HEIGHT - 1 - i][HEIGHT - 1 - j];
-                blocks[HEIGHT - 1 - i][HEIGHT - 1 - j] = blocks[j][HEIGHT - 1- i];
+                blocks[HEIGHT - 1 - i][HEIGHT - 1 - j] = blocks[j][HEIGHT - 1 - i];
                 blocks[j][HEIGHT - 1 - i] = tmp_block;
+            }
+        }
+
+        self.blocks = blocks;
+    }
+
+    fn count_neighbours(&self, map: [[bool; WIDTH]; HEIGHT], x: usize, y: usize) -> i32 {
+        let mut count_n = 0;
+
+        for ii in 0..3 {
+            for jj in 0..3 {
+                let i = ii as i32 - 1;
+                let j = jj as i32 - 1;
+
+                if i == 0 && j == 0 {
+                    continue;
+                }
+
+                let n_x = x as i32 + i;
+                let n_y = y as i32 + j;
+
+                if n_x < 0 || n_y < 0 || n_x >= WIDTH as i32 || n_y >= HEIGHT as i32 {
+                    count_n += 1;
+                } else if map[n_x as usize][n_y as usize] {
+                    count_n += 1;
+                }
+            }
+        }
+
+        count_n
+    }
+
+    fn do_cave_generation_step(&self, old_map: [[bool; WIDTH]; HEIGHT]) -> [[bool; WIDTH]; HEIGHT] {
+        let mut new_map = [[false; WIDTH]; HEIGHT];
+        let death_limit = 3;
+        let birth_limit = 4;
+        // let birth_limit = 3;
+
+        for i in 0..WIDTH {
+            for j in 0..HEIGHT {
+                let nbs = self.count_neighbours(old_map, i, j);
+                if old_map[i][j] {
+                    if nbs < death_limit {
+                        new_map[i][j] = false;
+                    } else {
+                        new_map[i][j] = true;
+                    }
+                } else {
+                    if nbs > birth_limit {
+                        new_map[i][j] = true;
+                    } else {
+                        new_map[i][j] = false;
+                    }
+                }
+            }
+        }
+
+        new_map
+    }
+
+    fn initialize_cave(&self) -> [[bool; WIDTH]; HEIGHT] {
+        let mut cave_map = [[false; WIDTH]; HEIGHT];
+        let chance_to_start_alive = 0.35;
+
+        for i in 0..WIDTH {
+            for j in 0..HEIGHT {
+                let chance: f64 = rand::thread_rng().gen();
+                if (chance < chance_to_start_alive) {
+                    cave_map[i][j] = true;
+                    // blocks[i][j] = Cell::Ground;
+                }
+            }
+        }
+
+        cave_map
+    }
+
+    fn generate_map(&mut self) {
+        self.clear_map();
+        let mut blocks = self.blocks;
+        let mut cave_map = self.initialize_cave();
+
+        for _ in 0..3 {
+            cave_map = self.do_cave_generation_step(cave_map);
+        }
+
+        for i in 0..WIDTH {
+            for j in 0..HEIGHT {
+                if cave_map[i][j] {
+                    blocks[i][j] = Cell::Ground;
+                } else {
+                    blocks[i][j] = Cell::Air;
+                }
             }
         }
 
@@ -477,6 +574,7 @@ fn main() {
                     Key::Key2 => world.select_element(Cell::Water),
                     Key::E => world.rotate_canvas_anticlockwise(),
                     Key::R => world.rotate_canvas_clockwise(),
+                    Key::N => world.generate_map(),
                     Key::C => world.clear_map(),
                     _ => (),
                 }
