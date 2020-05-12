@@ -15,6 +15,19 @@ const WINDOW_HEIGHT: u32 = 256;
 const FIELD_WIDTH: i32 = 256;
 const FIELD_HEIGHT: i32 = 256;
 
+#[derive(Copy, Clone)]
+enum CellType {
+    Empty = 0,
+    Block = 1,
+    Water = 2,
+}
+
+impl Default for CellType {
+    fn default() -> Self {
+        CellType::Empty
+    }
+}
+
 // Struct for structured buffers
 // #[allow(dead_code)]
 #[derive(Default, Copy, Clone)]
@@ -171,6 +184,7 @@ impl Application {
         let mut time = self.get_time();
 
         let mut drawing_cell = 0;
+        let mut drawing_type = CellType::Water as i32;
         let mut drawing_x = 0;
         let mut drawing_y = 0;
 
@@ -193,6 +207,9 @@ impl Application {
                 match event {
                     WindowEvent::Key(Key::Q, _, Action::Press, _) => self.window.set_should_close(true),
                     WindowEvent::Key(Key::P, _, Action::Press, _) => self.is_paused = !self.is_paused,
+                    WindowEvent::Key(Key::Num1, _, Action::Press, _) => drawing_type = CellType::Block as i32,
+                    WindowEvent::Key(Key::Num2, _, Action::Press, _) => drawing_type = CellType::Water as i32,
+                    WindowEvent::Key(Key::R, _, Action::Press, _) => self.prev_sb.map_data(&Application::generate_cave(&self.field_size)),
                     // WindowEvent::Key(Key::R, _, Action::Press, _) => self.prev_sb.map_data(&Application::generate_field(&self.field_size)),
                     WindowEvent::MouseButton(btn, action, mods) => {
                         match action {
@@ -201,7 +218,7 @@ impl Application {
                             _ => {}
                         }
 
-                        // println!("Button: {:?}, Action: {:?}, Modifiers: [{:?}]", glfw::DebugAliases(btn), action, mods);
+                        println!("Button: {:?}, Action: {:?}, Modifiers: [{:?}]", glfw::DebugAliases(btn), action, mods);
                     }
                     WindowEvent::CursorPos(xpos, ypos) => {
                         if drawing_cell == 1 {
@@ -225,13 +242,13 @@ impl Application {
                 self.compute_program.set_uniform("u_dt", Uniform::Float(update_time as f32));
                 self.compute_program.set_uniform("u_time", Uniform::Float(self.get_time() as f32));
                 self.compute_program.set_uniform("u_drawing", Uniform::Int(drawing_cell));
+                self.compute_program.set_uniform("u_drawing_type", Uniform::Int(drawing_type));
 
-                self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 0);
-                self.compute_program.bind_storage_buffer(self.prev_sb.get_id(), 1);
+                self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 1);
+                self.compute_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
 
                 if drawing_cell == 1 {
                     self.compute_program.set_uniform("u_drawing_coords", Uniform::Vec2(drawing_x as f32, drawing_y as f32));
-                    // println!("DRAWING {} {}", drawing_x, drawing_y);
                 }
 
                 self.gl_ctx.dispatch_compute(
@@ -239,18 +256,6 @@ impl Application {
                     self.field_size.y as u32 / 8,
                     1,
                 );
-
-                // self.gl_ctx.bind_pipeline(&self.compute_program_2);
-                // self.compute_program_2.set_uniform("u_field_size", Uniform::Vec2(self.field_size.x as f32, self.field_size.y as f32));
-                // self.compute_program_2.bind_storage_buffer(self.prev_sb.get_id(), 0);
-                // self.compute_program_2.bind_storage_buffer(self.curr_sb.get_id(), 1);
-                //
-                // // Dispatches a arbitrary number of groups, our local work group size is 8x8x1 so we divide our field by 8.
-                // self.gl_ctx.dispatch_compute(
-                //     self.field_size.x as u32 / 8,
-                //     self.field_size.y as u32 / 8,
-                //     1,
-                // );
 
                 // FENCE and sync
 
@@ -261,11 +266,14 @@ impl Application {
 
             self.gl_ctx.bind_pipeline(&self.render_program);
             self.render_program.set_uniform("u_field_size", Uniform::Vec2(self.field_size.x as f32, self.field_size.y as f32));
+            self.render_program.set_uniform("u_time", Uniform::Float(self.get_time() as f32));
             self.render_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
 
             self.quad.draw();
 
             self.window.swap_buffers();
+
+            println!("{}", self.prev_sb.get_id());
         }
 
         Ok(())
@@ -276,24 +284,44 @@ impl Application {
 
         for _ in 0..field_size.x * field_size.y {
             image.push(Cell {
-                element_type: 0,
+                element_type: CellType::Empty as i32,
                 mass: 0.0,
             });
         }
 
         for i in 0..256 {
-            // image[i as usize + (10 * field_size.x as usize)].element_type = 1;
             image[i as usize + (128 * field_size.x as usize)] = Cell {
-                element_type: 1,
+                element_type: CellType::Block as i32,
                 mass: 0.0,
             };
         }
 
-        image[128 + 192 * 256] = Cell { element_type: 2, mass: 0.0 };
-        image[129 + 190 * 256] = Cell { element_type: 2, mass: 0.0 };
-        image[130 + 193 * 256] = Cell { element_type: 2, mass: 0.0 };
-        image[131 + 191 * 256] = Cell { element_type: 2, mass: 0.0 };
-        image[132 + 192 * 256] = Cell { element_type: 2, mass: 0.0 };
+        image[128 + 192 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
+        image[129 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
+        image[130 + 193 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
+        image[131 + 191 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
+        image[132 + 192 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
+
+        image
+    }
+
+    fn generate_cave(field_size: &Vec2<i32>) -> Vec<Cell> {
+        let mut rng = rand::thread_rng();
+        let mut image = Vec::new();
+
+        for _ in 0..field_size.x * field_size.y {
+            if rng.gen::<f32>() < 0.2 {
+                image.push(Cell {
+                    element_type: CellType::Block as i32,
+                    mass: 0.0,
+                })
+            } else {
+                image.push(Cell {
+                    element_type: CellType::Empty as i32,
+                    mass: 0.0,
+                })
+            }
+        }
 
         image
     }
