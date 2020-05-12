@@ -542,7 +542,7 @@ impl World {
     }
 }
 
-fn main() {
+fn cpu_rendering() {
     let mut world = World::new();
 
     let mut buff = vec![0; WIDTH * HEIGHT];
@@ -601,5 +601,13 @@ fn main() {
         window
             .update_with_buffer(&buff, WIDTH, HEIGHT)
             .unwrap();
+    }
+}
+
+fn main() {
+    // cpu_rendering();
+
+    if let Err(failure) = automata_sandbox::run_simulation() {
+        eprintln!("Application failed: {}", failure);
     }
 }

@@ -10,6 +10,9 @@ edition = "2018"
 minifb = "0.15.3"
 vek = "0.9.12"
 rand = "0.5.5"
+gl = "0.6.0"
+glfw = "0.23.0"
+glw = "0.1.4"
 
 [dev-dependencies]
 criterion = "0.3"
