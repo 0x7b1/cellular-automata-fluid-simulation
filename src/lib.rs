@@ -3,12 +3,13 @@ use std::error::Error;
 use std::cmp::min;
 use std::mem::swap;
 
-use glfw::{Context, WindowHint, WindowEvent, Key, Action};
+use glfw::{Context, WindowHint, WindowEvent, Key, Action, CursorMode};
 use glw::shader::ShaderType;
 use glw::buffers::StructuredBuffer;
 use glw::{Color, RenderTarget, Shader, Uniform, Vec2, MemoryBarrier};
 use rand::Rng;
 use std::borrow::Borrow;
+use minifb::clamp;
 
 const WINDOW_WIDTH: u32 = 256;
 const WINDOW_HEIGHT: u32 = 256;
@@ -59,7 +60,6 @@ struct Application {
     // prev_sb: StructuredBuffer<Data>,
 
     compute_program: glw::GraphicsPipeline,
-    // compute_program_2: glw::GraphicsPipeline,
     render_program: glw::GraphicsPipeline,
 
     // Quad mesh
@@ -88,12 +88,17 @@ impl Application {
         // Settup up the OpenGL context
         let mut ctx = glw::GLContext::new(&mut window);
 
-        #[cfg(debug_assertions)]
-            ctx.set_debug();
+        // #[cfg(debug_assertions)]
+        //     ctx.set_debug();
 
+        window.set_cursor_mode(CursorMode::Disabled);
+        window.make_current();
+
+        // window.set_all_polling(true);
         window.set_key_polling(true);
         window.set_mouse_button_polling(true);
         window.set_cursor_pos_polling(true);
+        window.set_scroll_polling(true);
 
         window.show();
 
@@ -119,6 +124,7 @@ impl Application {
             let mut f_shader = Shader::new(ShaderType::Fragment);
 
             v_shader.load_from_file("shaders/passthrough.vert").unwrap();
+            // f_shader.load_from_file("shaders/composition_experiments.frag").unwrap();
             f_shader.load_from_file("shaders/composition.frag").unwrap();
 
             glw::PipelineBuilder::new()
@@ -137,22 +143,12 @@ impl Application {
                 .build()
         };
 
-        // let compute_program_2 = {
-        //     let mut c_shader_update = Shader::new(ShaderType::Compute);
-        //     c_shader_update.load_from_file("shaders/water_update.shader").unwrap();
-        //
-        //     glw::PipelineBuilder::new()
-        //         .with_compute_shader(c_shader_update)
-        //         .build()
-        // };
-
         let field_size = Vec2::<i32> {
             x: FIELD_WIDTH,
             y: FIELD_HEIGHT,
         };
 
         let image_data = Application::generate_map(&field_size);
-        // let image_data = Application::generate_field(&field_size);
 
         let prev_sb = StructuredBuffer::from(image_data);
         let curr_sb = StructuredBuffer::new((field_size.x * field_size.y) as usize);
@@ -165,7 +161,6 @@ impl Application {
             curr_sb,
             prev_sb,
             compute_program,
-            // compute_program_2,
             render_program,
             quad,
             is_paused: false,
@@ -185,8 +180,9 @@ impl Application {
 
         let mut drawing_cell = 0;
         let mut drawing_type = CellType::Water as i32;
-        let mut drawing_x = 0;
-        let mut drawing_y = 0;
+        let mut mouse_x = 0.0;
+        let mut mouse_y = 0.0;
+        let mut brush_size = 0.0;
 
         while !self.window.should_close() {
             let (width, height) = self.window.get_size();
@@ -210,7 +206,6 @@ impl Application {
                     WindowEvent::Key(Key::Num1, _, Action::Press, _) => drawing_type = CellType::Block as i32,
                     WindowEvent::Key(Key::Num2, _, Action::Press, _) => drawing_type = CellType::Water as i32,
                     WindowEvent::Key(Key::R, _, Action::Press, _) => self.prev_sb.map_data(&Application::generate_cave(&self.field_size)),
-                    // WindowEvent::Key(Key::R, _, Action::Press, _) => self.prev_sb.map_data(&Application::generate_field(&self.field_size)),
                     WindowEvent::MouseButton(btn, action, mods) => {
                         match action {
                             glfw::Action::Press => drawing_cell = 1,
@@ -218,14 +213,22 @@ impl Application {
                             _ => {}
                         }
 
-                        println!("Button: {:?}, Action: {:?}, Modifiers: [{:?}]", glfw::DebugAliases(btn), action, mods);
+                        // println!("Button: {:?}, Action: {:?}, Modifiers: [{:?}]", glfw::DebugAliases(btn), action, mods);
                     }
-                    WindowEvent::CursorPos(xpos, ypos) => {
-                        if drawing_cell == 1 {
-                            drawing_x = xpos as i32;
-                            drawing_y = ypos as i32;
+                    WindowEvent::Scroll(x, y) => {
+                        if y != 0.0 {
+                            brush_size = clamp(0.0, brush_size - y as f32, 20.0);
                         }
                     }
+                    WindowEvent::CursorPos(xpos, ypos) => {
+                        mouse_x = xpos as f32;
+                        mouse_y = ypos as f32;
+                    }
+                    WindowEvent::Key(Key::Space, _, Action::Press, _) => match self.window.get_cursor_mode() {
+                        CursorMode::Disabled => self.window.set_cursor_mode(CursorMode::Normal),
+                        CursorMode::Normal => self.window.set_cursor_mode(CursorMode::Disabled),
+                        _ => {}
+                    },
                     _ => {}
                 }
             }
@@ -243,13 +246,10 @@ impl Application {
                 self.compute_program.set_uniform("u_time", Uniform::Float(self.get_time() as f32));
                 self.compute_program.set_uniform("u_drawing", Uniform::Int(drawing_cell));
                 self.compute_program.set_uniform("u_drawing_type", Uniform::Int(drawing_type));
+                self.compute_program.set_uniform("u_mouse", Uniform::Vec2(mouse_x, mouse_y));
 
                 self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 1);
                 self.compute_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
-
-                if drawing_cell == 1 {
-                    self.compute_program.set_uniform("u_drawing_coords", Uniform::Vec2(drawing_x as f32, drawing_y as f32));
-                }
 
                 self.gl_ctx.dispatch_compute(
                     self.field_size.x as u32 / 8,
@@ -267,13 +267,13 @@ impl Application {
             self.gl_ctx.bind_pipeline(&self.render_program);
             self.render_program.set_uniform("u_field_size", Uniform::Vec2(self.field_size.x as f32, self.field_size.y as f32));
             self.render_program.set_uniform("u_time", Uniform::Float(self.get_time() as f32));
+            self.render_program.set_uniform("u_mouse", Uniform::Vec2(mouse_x, mouse_y));
+            self.render_program.set_uniform("u_brush_size", Uniform::Float(brush_size));
             self.render_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
 
             self.quad.draw();
 
             self.window.swap_buffers();
-
-            println!("{}", self.prev_sb.get_id());
         }
 
         Ok(())

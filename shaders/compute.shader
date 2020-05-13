@@ -25,7 +25,7 @@ uniform float u_dt;
 uniform float u_time;
 uniform int u_drawing;
 uniform int u_drawing_type;
-uniform vec2 u_drawing_coords;
+uniform vec2 u_mouse;
 
 layout(shared, binding = 0) readonly buffer InputData {
     Cell curr_gen[];
@@ -58,14 +58,16 @@ void main() {
     ivec2 curr_coord = ivec2(gl_GlobalInvocationID.xy);
 
     Cell above = curr_gen[toIndex(curr_coord + ivec2(0, 1))];
-    Cell curr = curr_gen[toIndex(curr_coord)];
+    Cell cell = curr_gen[toIndex(curr_coord)];
     Cell below = curr_gen[toIndex(curr_coord + ivec2(0, -1))];
+    Cell right = curr_gen[toIndex(curr_coord + ivec2(1, 0))];
+    Cell left = curr_gen[toIndex(curr_coord + ivec2(-1, 0))];
 
     float flow = 0.0;
     float remaining_mass = 0.0;
 
-    int curr_type = curr.element_type;
-    float curr_mass = curr.mass;
+    int curr_type = cell.element_type;
+    float curr_mass = cell.mass;
 
     if (u_drawing == DRAWING_ON) {
         Cell new_cell = Cell (
@@ -78,10 +80,11 @@ void main() {
         }
 
 
-        int tmpX = int(u_drawing_coords.x);
-        int tmpY = int(u_field_size.x) - int(u_drawing_coords.y);
+        int tmpX = int(u_mouse.x);
+        int tmpY = int(u_field_size.x) - int(u_mouse.y);
 
         next_gen[toIndex(ivec2(tmpX, tmpY))] = new_cell;
+        /*
         next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(1, 0))] = new_cell;
         next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(2, 0))] = new_cell;
         next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(3, 0))] = new_cell;
@@ -102,14 +105,14 @@ void main() {
         next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(-2, -2))] = new_cell;
         next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(-3, -3))] = new_cell;
         next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(-4, -4))] = new_cell;
+        */
     }
 
-    next_gen[toIndex(curr_coord)] = curr;
+    next_gen[toIndex(curr_coord)] = cell;
 
-
-    if (curr.element_type == CELL_BLOCK) {
-        next_gen[toIndex(curr_coord)] = curr;
-    } else if (curr.element_type == CELL_EMPTY) {
+    if (cell.element_type == CELL_BLOCK) {
+        next_gen[toIndex(curr_coord)] = cell;
+    } else if (cell.element_type == CELL_EMPTY) {
         if (above.element_type == CELL_WATER) {
             next_gen[toIndex(curr_coord)] = Cell (
             CELL_WATER,
@@ -121,14 +124,25 @@ void main() {
             0.0
             );
         }
-    } else if (curr.element_type == CELL_WATER) {
+    } else if (cell.element_type == CELL_WATER) {
         if (below.element_type == CELL_EMPTY) {
             next_gen[toIndex(curr_coord)] = Cell (
             CELL_EMPTY,
             0.0
             );
         } else if (below.element_type == CELL_BLOCK) {
-            next_gen[toIndex(curr_coord)] = curr;
+            if (right.element_type == CELL_EMPTY || left.element_type == CELL_EMPTY) {
+                next_gen[toIndex(curr_coord + ivec2(1, 0))] = Cell (
+                CELL_WATER,
+                0.0
+                );
+                next_gen[toIndex(curr_coord + ivec2(-1, 0))] = Cell (
+                CELL_WATER,
+                0.0
+                );
+            } else {
+                next_gen[toIndex(curr_coord)] = cell;
+            }
         }
     }
 
@@ -159,7 +173,7 @@ void main() {
         }
     }
 
-    float flow = 0.0;
+    flow = 0.0;
     remaining_mass = cell.mass;
 
     if (remaining_mass <= 0.0) {
@@ -268,7 +282,7 @@ void main() {
         block_up.mass - flow
         );
 
-        next_gen[toIndex(curr_coord + ivec(0, 1))] = Cell (
+        next_gen[toIndex(curr_coord + ivec2(0, 1))] = Cell (
         block_up.element_type,
         block_up.mass + flow
         );
@@ -289,8 +303,7 @@ void main() {
             cell.mass
             );
         }
-    }
-    */
+    }*/
 
     // TODO: Handle cells out of bounds
 }
