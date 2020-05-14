@@ -23,6 +23,7 @@ const float MAX_SPEED = 1.0;
 uniform vec2 u_field_size;
 uniform float u_dt;
 uniform float u_time;
+uniform float u_brush_size;
 uniform int u_drawing;
 uniform int u_drawing_type;
 uniform vec2 u_mouse;
@@ -74,38 +75,35 @@ void main() {
         u_drawing_type,
         1.0
         );
+//
+//        if (rand(curr_coord) <= 0.5) {
+//            new_cell.mass = 0.0;
+//        }
 
-        if (rand(curr_coord) <= 0.5) {
-            new_cell.mass = 0.0;
-        }
+
+        int mouseX = int(u_mouse.x);
+        int mouseY = int(u_field_size.x) - int(u_mouse.y);
 
 
-        int tmpX = int(u_mouse.x);
-        int tmpY = int(u_field_size.x) - int(u_mouse.y);
+//        next_gen[toIndex(ivec2(tmpX, tmpY))] = new_cell;
 
-        next_gen[toIndex(ivec2(tmpX, tmpY))] = new_cell;
         /*
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(1, 0))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(2, 0))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(3, 0))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(4, 0))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(0, 1))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(0, 2))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(0, 3))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(0, 4))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(1, 1))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(2, 2))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(3, 3))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(4, 4))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(1, -1))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(2, -2))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(3, -3))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(4, -4))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(-1, -1))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(-2, -2))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(-3, -3))] = new_cell;
-        next_gen[toIndex(ivec2(tmpX, tmpY) + ivec2(-4, -4))] = new_cell;
+
+r=5000; % some radius
+color=[1 0 0]; % red color
+t=linspace(0,2*pi);
+fill(E+r*cos(t),N+r*sin(t),color);
         */
+
+        int radius = int(u_brush_size);
+
+        for (int x = -radius; x < radius; x++) {
+            int height = int(sqrt(radius * radius - x * x));
+            for (int y = -height; y < height; y++) {
+                int idx = toIndex(ivec2(mouseX, mouseY) + ivec2(x, y));
+                next_gen[idx] = new_cell;
+            }
+        }
     }
 
     next_gen[toIndex(curr_coord)] = cell;

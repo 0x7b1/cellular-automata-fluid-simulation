@@ -91,7 +91,7 @@ impl Application {
         // #[cfg(debug_assertions)]
         //     ctx.set_debug();
 
-        window.set_cursor_mode(CursorMode::Disabled);
+        // window.set_cursor_mode(CursorMode::Disabled);
         window.make_current();
 
         // window.set_all_polling(true);
@@ -182,7 +182,7 @@ impl Application {
         let mut drawing_type = CellType::Water as i32;
         let mut mouse_x = 0.0;
         let mut mouse_y = 0.0;
-        let mut brush_size = 0.0;
+        let mut brush_size = 1.0;
 
         while !self.window.should_close() {
             let (width, height) = self.window.get_size();
@@ -217,7 +217,7 @@ impl Application {
                     }
                     WindowEvent::Scroll(x, y) => {
                         if y != 0.0 {
-                            brush_size = clamp(0.0, brush_size - y as f32, 20.0);
+                            brush_size = clamp(1.0, brush_size - y as f32, 20.0);
                         }
                     }
                     WindowEvent::CursorPos(xpos, ypos) => {
@@ -247,6 +247,7 @@ impl Application {
                 self.compute_program.set_uniform("u_drawing", Uniform::Int(drawing_cell));
                 self.compute_program.set_uniform("u_drawing_type", Uniform::Int(drawing_type));
                 self.compute_program.set_uniform("u_mouse", Uniform::Vec2(mouse_x, mouse_y));
+                self.compute_program.set_uniform("u_brush_size", Uniform::Float(brush_size));
 
                 self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 1);
                 self.compute_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
