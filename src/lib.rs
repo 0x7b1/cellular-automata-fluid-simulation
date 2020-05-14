@@ -29,19 +29,19 @@ impl Default for CellType {
     }
 }
 
-// Struct for structured buffers
-// #[allow(dead_code)]
-#[derive(Default, Copy, Clone)]
-struct Data {
-    alive: bool,
-    lifetime: f32,
-    t: f32,
-}
-
-#[derive(Default, Copy, Clone)]
+#[derive(Copy, Clone)]
 struct Cell {
     element_type: i32,
     mass: f32,
+}
+
+impl Default for Cell {
+    fn default() -> Self {
+        Cell {
+            element_type: CellType::Empty as i32,
+            mass: 0.0,
+        }
+    }
 }
 
 struct Application {
@@ -56,8 +56,6 @@ struct Application {
     // 2 Structured buffers needed to store the data for the computed shaders
     curr_sb: StructuredBuffer<Cell>,
     prev_sb: StructuredBuffer<Cell>,
-    // curr_sb: StructuredBuffer<Data>,
-    // prev_sb: StructuredBuffer<Data>,
 
     compute_program: glw::GraphicsPipeline,
     render_program: glw::GraphicsPipeline,
@@ -88,10 +86,7 @@ impl Application {
         // Settup up the OpenGL context
         let mut ctx = glw::GLContext::new(&mut window);
 
-        // #[cfg(debug_assertions)]
-        //     ctx.set_debug();
-
-        // window.set_cursor_mode(CursorMode::Disabled);
+        window.set_cursor_mode(CursorMode::Hidden);
         window.make_current();
 
         // window.set_all_polling(true);
@@ -203,9 +198,10 @@ impl Application {
                 match event {
                     WindowEvent::Key(Key::Q, _, Action::Press, _) => self.window.set_should_close(true),
                     WindowEvent::Key(Key::P, _, Action::Press, _) => self.is_paused = !self.is_paused,
+                    WindowEvent::Key(Key::C, _, Action::Press, _) => self.prev_sb.map_data(&Application::get_empty_field(&self.field_size)),
+                    WindowEvent::Key(Key::R, _, Action::Press, _) => self.prev_sb.map_data(&Application::generate_cave(&self.field_size)),
                     WindowEvent::Key(Key::Num1, _, Action::Press, _) => drawing_type = CellType::Block as i32,
                     WindowEvent::Key(Key::Num2, _, Action::Press, _) => drawing_type = CellType::Water as i32,
-                    WindowEvent::Key(Key::R, _, Action::Press, _) => self.prev_sb.map_data(&Application::generate_cave(&self.field_size)),
                     WindowEvent::MouseButton(btn, action, mods) => {
                         match action {
                             glfw::Action::Press => drawing_cell = 1,
@@ -327,27 +323,8 @@ impl Application {
         image
     }
 
-    fn generate_field(field_size: &Vec2<i32>) -> Vec<Data> {
-        let mut rng = rand::thread_rng();
-        let mut image = Vec::new();
-
-        for _ in 0..field_size.x * field_size.y {
-            if rng.gen::<f32>() > 0.1 {
-                image.push(Data {
-                    alive: false,
-                    lifetime: 0.0,
-                    t: 0.0,
-                });
-            } else {
-                image.push(Data {
-                    alive: true,
-                    lifetime: 1.0,
-                    t: 0.0,
-                });
-            }
-        }
-
-        image
+    fn get_empty_field(field_size: &Vec2<i32>) -> Vec<Cell> {
+        vec![Cell::default(); (field_size.x * field_size.y) as usize]
     }
 
     fn get_time(&self) -> f64 {

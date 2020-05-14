@@ -177,8 +177,8 @@ impl World {
         let mut flow = 0.0;
         let mut blocks = self.blocks.clone();
         let mass = self.mass.clone();
-        let mut new_mass = self.new_mass.clone();
-        // let mut new_mass = [[0.0; WIDTH]; HEIGHT];
+        // let mut new_mass = self.new_mass.clone();
+        let mut new_mass = [[0.0; WIDTH]; HEIGHT];
         let mut remaining_mass;
 
         // Calculate and apply flow for each block

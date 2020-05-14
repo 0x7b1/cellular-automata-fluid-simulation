@@ -28,6 +28,12 @@ uniform int u_drawing;
 uniform int u_drawing_type;
 uniform vec2 u_mouse;
 
+/*
+uniform vec2 u_resolution;  // Canvas size (width,height)
+uniform vec2 u_mouse;       // mouse position in screen pixels
+uniform float u_time;       // Time in seconds since load
+*/
+
 layout(shared, binding = 0) readonly buffer InputData {
     Cell curr_gen[];
 //  Cell mass_values[width * height];
@@ -36,6 +42,8 @@ layout(shared, binding = 0) readonly buffer InputData {
 layout(shared, binding = 1) writeonly buffer OutputData {
     Cell next_gen[];
 };
+
+//layout(shared, binding = 2, std140) uniform float u_instruction;
 
 int toIndex(ivec2 pos) {
     return pos.x + pos.y * int(u_field_size.x);
@@ -75,26 +83,14 @@ void main() {
         u_drawing_type,
         1.0
         );
-//
-//        if (rand(curr_coord) <= 0.5) {
-//            new_cell.mass = 0.0;
-//        }
+        //
+        //        if (rand(curr_coord) <= 0.5) {
+        //            new_cell.mass = 0.0;
+        //        }
 
 
         int mouseX = int(u_mouse.x);
-        int mouseY = int(u_field_size.x) - int(u_mouse.y);
-
-
-//        next_gen[toIndex(ivec2(tmpX, tmpY))] = new_cell;
-
-        /*
-
-r=5000; % some radius
-color=[1 0 0]; % red color
-t=linspace(0,2*pi);
-fill(E+r*cos(t),N+r*sin(t),color);
-        */
-
+        int mouseY = int(u_field_size.y) - int(u_mouse.y);
         int radius = int(u_brush_size);
 
         for (int x = -radius; x < radius; x++) {
@@ -110,7 +106,10 @@ fill(E+r*cos(t),N+r*sin(t),color);
 
     if (cell.element_type == CELL_BLOCK) {
         next_gen[toIndex(curr_coord)] = cell;
-    } else if (cell.element_type == CELL_EMPTY) {
+        return;
+    }
+
+    if (cell.element_type == CELL_EMPTY) {
         if (above.element_type == CELL_WATER) {
             next_gen[toIndex(curr_coord)] = Cell (
             CELL_WATER,
@@ -138,8 +137,6 @@ fill(E+r*cos(t),N+r*sin(t),color);
                 CELL_WATER,
                 0.0
                 );
-            } else {
-                next_gen[toIndex(curr_coord)] = cell;
             }
         }
     }

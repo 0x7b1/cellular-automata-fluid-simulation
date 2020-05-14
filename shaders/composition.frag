@@ -102,3 +102,9 @@ void main() {
 
     FragColor = vec4(color, 1.0);
 }
+
+/*
+https://thebookofshaders.com/edit.php?log=160909064723
+https://thebookofshaders.com/edit.php?log=160909064528
+https://thebookofshaders.com/edit.php?log=161127202429
+*/
