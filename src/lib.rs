@@ -9,10 +9,9 @@ use glw::buffers::StructuredBuffer;
 use glw::{Color, RenderTarget, Shader, Uniform, Vec2, MemoryBarrier};
 use rand::Rng;
 use std::borrow::Borrow;
-use minifb::clamp;
 
-const WINDOW_WIDTH: u32 = 256;
-const WINDOW_HEIGHT: u32 = 256;
+const WINDOW_WIDTH: u32 = 512;
+const WINDOW_HEIGHT: u32 = 512;
 const FIELD_WIDTH: i32 = 256;
 const FIELD_HEIGHT: i32 = 256;
 
@@ -44,6 +43,18 @@ impl Default for Cell {
     }
 }
 
+fn clamp<T: PartialOrd>(val: T, min: T, max: T) -> T {
+    if val < min {
+        min
+    } else {
+        if val > max {
+            max
+        } else {
+            val
+        }
+    }
+}
+
 struct Application {
     // GLFW Setup
     glfw: glfw::Glfw,
@@ -56,6 +67,7 @@ struct Application {
     // 2 Structured buffers needed to store the data for the computed shaders
     curr_sb: StructuredBuffer<Cell>,
     prev_sb: StructuredBuffer<Cell>,
+    tmp_sb: StructuredBuffer<f32>,
 
     compute_program: glw::GraphicsPipeline,
     render_program: glw::GraphicsPipeline,
@@ -148,6 +160,28 @@ impl Application {
         let prev_sb = StructuredBuffer::from(image_data);
         let curr_sb = StructuredBuffer::new((field_size.x * field_size.y) as usize);
 
+        let mut tmpVec = vec![0.0f32; (field_size.x * field_size.y) as usize];
+
+        tmpVec[129 + 190 * 256] = 1.0;
+        tmpVec[129 + 200 * 256] = 1.0;
+        tmpVec[129 + 210 * 256] = 1.0;
+        tmpVec[129 + 180 * 256] = 1.0;
+        tmpVec[129 + 170 * 256] = 1.0;
+        tmpVec[129 + 160 * 256] = 1.0;
+        tmpVec[129 + 120 * 256] = 1.0;
+        tmpVec[132 + 190 * 256] = 1.0;
+        tmpVec[126 + 196 * 256] = 1.0;
+
+        // for i in 0..5 { // TODO: Fix falsy capture of unbounded data
+        //     for j in 0..5 {
+        //         if i == j {
+        //             tmpVec[(128 + i) + (190 + j) * 256] = 1.0;
+        //         }
+        //     }
+        // }
+
+        let tmp_sb = StructuredBuffer::from(tmpVec);
+
         Ok(Application {
             glfw,
             window,
@@ -155,6 +189,7 @@ impl Application {
             field_size,
             curr_sb,
             prev_sb,
+            tmp_sb,
             compute_program,
             render_program,
             quad,
@@ -168,7 +203,7 @@ impl Application {
 
         // let update_time = 1.0 / 200.0;
         let update_time = 1.0 / 40.0;
-        // let update_time = 1.0 / 5.0;
+        // let update_time = 1.0;
 
         let mut timer = 0.0;
         let mut time = self.get_time();
@@ -198,8 +233,14 @@ impl Application {
                 match event {
                     WindowEvent::Key(Key::Q, _, Action::Press, _) => self.window.set_should_close(true),
                     WindowEvent::Key(Key::P, _, Action::Press, _) => self.is_paused = !self.is_paused,
-                    WindowEvent::Key(Key::C, _, Action::Press, _) => self.prev_sb.map_data(&Application::get_empty_field(&self.field_size)),
-                    WindowEvent::Key(Key::R, _, Action::Press, _) => self.prev_sb.map_data(&Application::generate_cave(&self.field_size)),
+                    WindowEvent::Key(Key::C, _, Action::Press, _) => {
+                        self.prev_sb.map_data(&Application::get_empty_field(&self.field_size));
+                        self.tmp_sb.map_data(&vec![0.0f32; (self.field_size.x * self.field_size.y) as usize]);
+                    }
+                    WindowEvent::Key(Key::R, _, Action::Press, _) => {
+                        self.prev_sb.map_data(&Application::generate_cave(&self.field_size));
+                        self.tmp_sb.map_data(&vec![0.0f32; (self.field_size.x * self.field_size.y) as usize]);
+                    }
                     WindowEvent::Key(Key::Num1, _, Action::Press, _) => drawing_type = CellType::Block as i32,
                     WindowEvent::Key(Key::Num2, _, Action::Press, _) => drawing_type = CellType::Water as i32,
                     WindowEvent::MouseButton(btn, action, mods) => {
@@ -213,7 +254,7 @@ impl Application {
                     }
                     WindowEvent::Scroll(x, y) => {
                         if y != 0.0 {
-                            brush_size = clamp(1.0, brush_size - y as f32, 20.0);
+                            brush_size = clamp(brush_size - y as f32, 1.0, 20.0);
                         }
                     }
                     WindowEvent::CursorPos(xpos, ypos) => {
@@ -237,7 +278,7 @@ impl Application {
 
                 self.gl_ctx.bind_pipeline(&self.compute_program);
 
-                self.compute_program.set_uniform("u_field_size", Uniform::Vec2(self.field_size.x as f32, self.field_size.y as f32));
+                self.compute_program.set_uniform("u_resolution", Uniform::Vec2(self.field_size.x as f32, self.field_size.y as f32));
                 self.compute_program.set_uniform("u_dt", Uniform::Float(update_time as f32));
                 self.compute_program.set_uniform("u_time", Uniform::Float(self.get_time() as f32));
                 self.compute_program.set_uniform("u_drawing", Uniform::Int(drawing_cell));
@@ -245,8 +286,9 @@ impl Application {
                 self.compute_program.set_uniform("u_mouse", Uniform::Vec2(mouse_x, mouse_y));
                 self.compute_program.set_uniform("u_brush_size", Uniform::Float(brush_size));
 
-                self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 1);
                 self.compute_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
+                self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 1);
+                self.compute_program.bind_storage_buffer(self.tmp_sb.get_id(), 2);
 
                 self.gl_ctx.dispatch_compute(
                     self.field_size.x as u32 / 8,
@@ -262,11 +304,12 @@ impl Application {
             }
 
             self.gl_ctx.bind_pipeline(&self.render_program);
-            self.render_program.set_uniform("u_field_size", Uniform::Vec2(self.field_size.x as f32, self.field_size.y as f32));
+            self.render_program.set_uniform("u_resolution", Uniform::Vec2(self.field_size.x as f32, self.field_size.y as f32));
             self.render_program.set_uniform("u_time", Uniform::Float(self.get_time() as f32));
             self.render_program.set_uniform("u_mouse", Uniform::Vec2(mouse_x, mouse_y));
             self.render_program.set_uniform("u_brush_size", Uniform::Float(brush_size));
             self.render_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
+            self.render_program.bind_storage_buffer(self.tmp_sb.get_id(), 2);
 
             self.quad.draw();
 
@@ -293,11 +336,29 @@ impl Application {
             };
         }
 
-        image[128 + 192 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
-        image[129 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
-        image[130 + 193 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
-        image[131 + 191 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
-        image[132 + 192 * 256] = Cell { element_type: CellType::Water as i32, mass: 0.0 };
+        // for i in 0..5 {
+        //     for j in 0..5 {
+        //         if i == j {
+        //             image[(128 + i) + (190 + j) * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        //         }
+        //     }
+        // }
+
+        image[129 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        image[129 + 200 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
+        image[129 + 210 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
+        image[129 + 180 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
+        image[129 + 170 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
+        image[129 + 160 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
+        image[129 + 120 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
+
+        image[132 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        image[126 + 196 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+
+        // image[129 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        // image[130 + 193 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        // image[131 + 191 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        // image[132 + 192 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
 
         image
     }

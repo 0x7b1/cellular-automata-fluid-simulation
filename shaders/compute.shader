@@ -5,11 +5,10 @@ layout(local_size_x = 8, local_size_y = 8) in;
 #define CELL_BLOCK 1
 #define CELL_WATER 2
 
-#define DRAWING_OFF 0
 #define DRAWING_ON 1
 
 struct Cell {
-    int element_type;
+    int type;
     float mass;
 };
 
@@ -20,33 +19,28 @@ const float MIN_FLOW = 0.01;
 const float FLOW_VARIANCE = 0.8;
 const float MAX_SPEED = 1.0;
 
-uniform vec2 u_field_size;
+uniform vec2 u_resolution;//  Canvas size (width,height)
 uniform float u_dt;
-uniform float u_time;
+uniform float u_time;// Time in seconds since load
 uniform float u_brush_size;
 uniform int u_drawing;
 uniform int u_drawing_type;
-uniform vec2 u_mouse;
-
-/*
-uniform vec2 u_resolution;  // Canvas size (width,height)
-uniform vec2 u_mouse;       // mouse position in screen pixels
-uniform float u_time;       // Time in seconds since load
-*/
+uniform vec2 u_mouse;// mouse position in screen pixels
 
 layout(shared, binding = 0) readonly buffer InputData {
     Cell curr_gen[];
-//  Cell mass_values[width * height];
 };
 
 layout(shared, binding = 1) writeonly buffer OutputData {
     Cell next_gen[];
 };
 
-//layout(shared, binding = 2, std140) uniform float u_instruction;
+layout(shared, binding = 2) buffer TmpData {
+    float mass_buffer[];
+};
 
 int toIndex(ivec2 pos) {
-    return pos.x + pos.y * int(u_field_size.x);
+    return pos.x + pos.y * int(u_resolution.x);
 }
 
 float getStableState(float total_mass) {
@@ -64,33 +58,31 @@ float rand(vec2 co){
 }
 
 void main() {
-    ivec2 curr_coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 xy_curr = ivec2(gl_GlobalInvocationID.xy);
+    int xy = toIndex(xy_curr);
+    int xy_above = toIndex(xy_curr + ivec2(0, 1));
+    int xy_below = toIndex(xy_curr + ivec2(0, -1));
+    int xy_right = toIndex(xy_curr + ivec2(1, 0));
+    int xy_left = toIndex(xy_curr + ivec2(-1, 0));
 
-    Cell above = curr_gen[toIndex(curr_coord + ivec2(0, 1))];
-    Cell cell = curr_gen[toIndex(curr_coord)];
-    Cell below = curr_gen[toIndex(curr_coord + ivec2(0, -1))];
-    Cell right = curr_gen[toIndex(curr_coord + ivec2(1, 0))];
-    Cell left = curr_gen[toIndex(curr_coord + ivec2(-1, 0))];
-
-    float flow = 0.0;
-    float remaining_mass = 0.0;
-
-    int curr_type = cell.element_type;
-    float curr_mass = cell.mass;
+    Cell curr = curr_gen[xy];
+    Cell above = curr_gen[xy_above];
+    Cell below = curr_gen[xy_below];
+    Cell right = curr_gen[xy_right];
+    Cell left = curr_gen[xy_left];
 
     if (u_drawing == DRAWING_ON) {
         Cell new_cell = Cell (
         u_drawing_type,
-        1.0
+        0.0
         );
-        //
-        //        if (rand(curr_coord) <= 0.5) {
-        //            new_cell.mass = 0.0;
-        //        }
 
+        if (u_drawing_type == CELL_WATER) {
+            new_cell.mass = 1.0 * MAX_MASS;
+        }
 
         int mouseX = int(u_mouse.x);
-        int mouseY = int(u_field_size.y) - int(u_mouse.y);
+        int mouseY = int(u_resolution.y) - int(u_mouse.y);
         int radius = int(u_brush_size);
 
         for (int x = -radius; x < radius; x++) {
@@ -98,207 +90,81 @@ void main() {
             for (int y = -height; y < height; y++) {
                 int idx = toIndex(ivec2(mouseX, mouseY) + ivec2(x, y));
                 next_gen[idx] = new_cell;
+                mass_buffer[idx] = new_cell.mass;
             }
         }
     }
 
-    next_gen[toIndex(curr_coord)] = cell;
+    if (curr.type == CELL_BLOCK) {
+//        if (above.type == CELL_WATER) {
+//            above.mass = above.mass - 1.0;
+//            next_gen[xy_above] = above;
+//            mass_buffer[xy_above] -= 1.0;
+//        }
 
-    if (cell.element_type == CELL_BLOCK) {
-        next_gen[toIndex(curr_coord)] = cell;
+        next_gen[xy] = curr;
+        mass_buffer[xy] = 0.0;
         return;
+
     }
 
-    if (cell.element_type == CELL_EMPTY) {
-        if (above.element_type == CELL_WATER) {
-            next_gen[toIndex(curr_coord)] = Cell (
-            CELL_WATER,
-            0.0
-            );
-        } else if (above.element_type == CELL_BLOCK) {
-            next_gen[toIndex(curr_coord)] = Cell (
-            CELL_EMPTY,
-            0.0
-            );
-        }
-    } else if (cell.element_type == CELL_WATER) {
-        if (below.element_type == CELL_EMPTY) {
-            next_gen[toIndex(curr_coord)] = Cell (
-            CELL_EMPTY,
-            0.0
-            );
-        } else if (below.element_type == CELL_BLOCK) {
-            if (right.element_type == CELL_EMPTY || left.element_type == CELL_EMPTY) {
-                next_gen[toIndex(curr_coord + ivec2(1, 0))] = Cell (
-                CELL_WATER,
-                0.0
-                );
-                next_gen[toIndex(curr_coord + ivec2(-1, 0))] = Cell (
-                CELL_WATER,
-                0.0
-                );
-            }
-        }
-    }
+    float flow = 0.0;
+    float remaining_mass = curr.mass;
 
-    /*
-    flow = 0.0;
-    remaining_mass = cell.mass;
-
-    // Make the cell fall down
-    if (remaining_mass > 0.0) {
-        Cell block_down = curr_gen[toIndex(curr_coord + ivec2(0, -1))];
-        // Perform the falling
-        if (block_down.element_type != CELL_BLOCK) {
-            flow = getStableState(remaining_mass + block_down.mass) - block_down.mass;
+    if (remaining_mass > 0) {
+        if (below.type != CELL_BLOCK) {
+            flow = getStableState(remaining_mass + below.mass) - below.mass;
             if (flow > MIN_FLOW) {
-                flow *= FLOW_VARIANCE;
+                flow *= 0.8;
             }
 
             flow = clamp(flow, 0.0, min(remaining_mass, MAX_SPEED));
 
-            next_gen[toIndex(curr_coord)] = cell;
-
-            next_gen[toIndex(curr_coord + ivec2(-1, 0))] = Cell (
-            block_down.element_type,
-            block_down.mass + flow
-            );
-
+            mass_buffer[xy] -= flow;
+            mass_buffer[xy_below] += flow;
             remaining_mass -= flow;
         }
     }
 
-    flow = 0.0;
-    remaining_mass = cell.mass;
+    if (remaining_mass > 0) {
+        if (left.type != CELL_BLOCK) {
+            flow = (curr.mass - left.mass) / 4.0;
+            if (flow > MIN_FLOW) {
+                flow *= 0.8;
+            }
 
-    if (remaining_mass <= 0.0) {
-        next_gen[toIndex(curr_coord)] = cell;
-        return;
-    }
+            flow = clamp(flow, 0.0, remaining_mass);
 
-    // Down
-    Cell block_down = curr_gen[toIndex(curr_coord + ivec2(0, -1))];
-    if (block_down.element_type != CELL_BLOCK) {
-        flow = getStableState(remaining_mass + block_down.mass) - block_down.mass;
-        if (flow > MIN_FLOW) {
-            flow *= FLOW_VARIANCE;
+            mass_buffer[xy] -= flow;
+            mass_buffer[xy_left] += flow;
+            remaining_mass -= flow;
         }
-
-        flow = clamp(flow, 0.0, remaining_mass);
-
-        Cell tmp1 = Cell (
-        block_down.element_type,
-        block_down.mass - flow
-        );
-
-        next_gen[toIndex(curr_coord)] = Cell (
-        block_down.element_type,
-        block_down.mass - flow
-        );
-
-        next_gen[toIndex(curr_coord + ivec2(-1, 0))] = Cell (
-        block_down.element_type,
-        block_down.mass + flow
-        );
-
-        remaining_mass -= flow;
     }
 
+    if (remaining_mass > 0) {
+        if (right.type != CELL_BLOCK) {
+            flow = (curr.mass - right.mass) / 4.0;
+            if (flow > MIN_FLOW) {
+                flow *= 0.8;
+            }
 
-    if (remaining_mass <= 0.0) {
-        next_gen[toIndex(curr_coord)] = cell;
-        return;
-    }
+            flow = clamp(flow, 0.0, remaining_mass);
 
-    // Left
-    Cell block_left = curr_gen[toIndex(curr_coord + ivec2(-1, 0))];
-    if (block_left.element_type != CELL_BLOCK) {
-        flow = (cell.mass - block_left.mass) / 4.0;
-        if (flow > MIN_FLOW) {
-            flow *= FLOW_VARIANCE;
+            mass_buffer[xy] -= flow;
+            mass_buffer[xy_right] += flow;
+            remaining_mass -= flow;
         }
-        flow = clamp(flow, 0.0, remaining_mass);
-
-        next_gen[toIndex(curr_coord)] = Cell (
-        block_left.element_type,
-        block_left.mass - flow
-        );
-
-        next_gen[toIndex(curr_coord + ivec2(-1, 0))] = Cell (
-        block_left.element_type,
-        block_left.mass + flow
-        );
-
-        remaining_mass -= flow;
     }
 
-    if (remaining_mass <= 0.0) {
-        return;
+    if (curr.mass > MIN_MASS) {
+        curr.type = CELL_WATER;
+    } else {
+        curr.type = CELL_EMPTY;
     }
 
-    // Right
-    Cell block_right = curr_gen[toIndex(curr_coord + ivec2(1, 0))];
-    if (block_right.element_type != CELL_BLOCK) {
-        flow = (cell.mass - block_right.mass) / 4.0;
-        if (flow > MIN_FLOW) {
-            flow *= FLOW_VARIANCE;
-        }
-        flow = clamp(flow, 0.0, remaining_mass);
+    curr.mass = mass_buffer[xy];
+    next_gen[xy] = curr;
 
-        next_gen[toIndex(curr_coord)] = Cell (
-        block_right.element_type,
-        block_right.mass - flow
-        );
-
-        next_gen[toIndex(curr_coord + ivec2(1, 0))] = Cell(
-        block_right.element_type,
-        block_right.mass + flow
-        );
-
-        remaining_mass -= flow;
-    }
-
-    if (remaining_mass <= 0.0) {
-        return;
-    }
-
-    // Up
-    Cell block_up = curr_gen[toIndex(curr_coord + ivec2(0, 1))];
-    if (block_up.element_type != CELL_BLOCK) {
-        flow = remaining_mass - getStableState(remaining_mass + block_up.mass);
-        if (flow > MIN_FLOW) {
-            flow *= FLOW_VARIANCE;
-        }
-
-        flow = clamp(flow, 0.0, min(remaining_mass, MAX_SPEED));
-
-        next_gen[toIndex(curr_coord)] = Cell (
-        block_up.element_type,
-        block_up.mass - flow
-        );
-
-        next_gen[toIndex(curr_coord + ivec2(0, 1))] = Cell (
-        block_up.element_type,
-        block_up.mass + flow
-        );
-
-        remaining_mass -= flow;
-    }
-
-    // Cell element_type placement
-    if (cell.element_type != CELL_BLOCK) {
-        if (cell.mass > MIN_MASS) {
-            next_gen[toIndex(curr_coord)] = Cell (
-            CELL_WATER,
-            cell.mass
-            );
-        } else {
-            next_gen[toIndex(curr_coord)] = Cell (
-            CELL_EMPTY,
-            cell.mass
-            );
-        }
-    }*/
-
-    // TODO: Handle cells out of bounds
+    //    memoryBarrier();
+    //    barrier();
 }

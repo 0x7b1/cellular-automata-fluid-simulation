@@ -177,13 +177,13 @@ impl World {
         let mut flow = 0.0;
         let mut blocks = self.blocks.clone();
         let mass = self.mass.clone();
-        // let mut new_mass = self.new_mass.clone();
-        let mut new_mass = [[0.0; WIDTH]; HEIGHT];
+        let mut new_mass = self.new_mass.clone();
+        // let mut new_mass = [[0.0; WIDTH]; HEIGHT];
         let mut remaining_mass;
 
         // Calculate and apply flow for each block
-        for x in 0..WIDTH {
-            for y in 0..HEIGHT {
+        for x in 0..WIDTH - 1 {
+            for y in 0..HEIGHT - 1 {
                 // Skip inert ground blocks
                 if blocks[x][y] == Cell::Ground {
                     continue;
@@ -197,7 +197,7 @@ impl World {
                     continue;
                 }
 
-                // The block bellow this one
+                // The block below this one
                 if blocks[x][y + 1] != Cell::Ground {
                     flow = self.get_stable_state(remaining_mass + mass[x][y + 1]) - mass[x][y + 1];
                     if flow > MIN_FLOW {
@@ -250,6 +250,7 @@ impl World {
                 if remaining_mass <= 0.0 {
                     continue;
                 }
+/*
 
                 // Up. Only compressed water flows upwards
                 if blocks[x][y - 1] != Cell::Ground {
@@ -264,6 +265,7 @@ impl World {
                     new_mass[x][y - 1] += flow;
                     remaining_mass -= flow;
                 }
+                */
             }
         }
 
@@ -297,8 +299,6 @@ impl World {
         self.mass = new_mass;
         self.new_mass = new_mass;
         self.blocks = blocks;
-
-        // println!("TICK DONE");
     }
 
     fn draw_element(&mut self, x: usize, y: usize) {

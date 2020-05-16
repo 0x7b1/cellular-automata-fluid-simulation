@@ -1,7 +1,7 @@
 #version 440 core
 layout (location = 0) in vec2 uv;
 
-uniform vec2 u_field_size;
+uniform vec2 u_resolution;
 uniform float u_time;
 uniform float u_dt;
 uniform vec2 u_mouse;
@@ -104,7 +104,7 @@ float distanceToSegment(vec2 a, vec2 b, vec2 p) {
 
 
 float smoothedge(float v, float f) {
-    return smoothstep(0.0, f / u_field_size.x, v);
+    return smoothstep(0.0, f / u_resolution.x, v);
 }
 
 
@@ -118,13 +118,13 @@ float ring(vec2 p, float radius, float width) {
 
 
 void main() {
-    ivec2 xy = ivec2(int(uv.x * u_field_size.x), int(uv.y * u_field_size.y));
-    int curr_coord = xy.x + xy.y * int(u_field_size.x);
+    ivec2 xy = ivec2(int(uv.x * u_resolution.x), int(uv.y * u_resolution.y));
+    int curr_coord = xy.x + xy.y * int(u_resolution.x);
     //    vec3 color = vec3(0.35, 0.48, 0.95);
-    vec2 mouse_coord = vec2(u_mouse.x / u_field_size.x, 1 - u_mouse.y / u_field_size.y);
+    vec2 mouse_coord = vec2(u_mouse.x / u_resolution.x, 1 - u_mouse.y / u_resolution.y);
 
     vec2 st = uv;
-    //    st.x *= u_field_size.x / u_field_size.y;
+    //    st.x *= u_resolution.x / u_resolution.y;
 //    float t = u_time;
         float t = 1.0;
     vec3 color = phong(st, normal(st), vec3(cos(t) * 0.5 + 0.5, sin(t) * 0.5 + 0.5, 1.0));
@@ -134,7 +134,7 @@ void main() {
     Cell cell = curr_gen[curr_coord];
     int cell_type = cell.element_type;
 
-    //    vec2 st = st / u_field_size.st;
+    //    vec2 st = st / u_resolution.st;
     //    vec3 color = vec3(0.0);
 
     if (cell_type == CELL_WATER) {
@@ -148,7 +148,7 @@ void main() {
         //        color += vec3(u_time * rnd, rnd, 0);
         color += vec3(1.0, 1.0, .0);
     } else if (cell_type == CELL_EMPTY) {
-        //        st.x *= u_field_size.x / u_field_size.y;
+        //        st.x *= u_resolution.x / u_resolution.y;
         //                        color += vec3(st.x, st.y, abs(sin(u_time)));
         float rad = mix(0.03, 0.08, u_brush_size / 7);
         float d = min(1.0, ring(st - mouse_coord, rad, 0.001));
