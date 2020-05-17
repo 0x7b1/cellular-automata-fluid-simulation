@@ -17,8 +17,10 @@ use std::ops::Sub;
 
 const FRAME_DELAY: u64 = 0;
 // const FRAME_DELAY: u64 = 16600 * 2;
-const WIDTH: usize = 200;
-const HEIGHT: usize = 200;
+// const WIDTH: usize = 200;
+// const HEIGHT: usize = 200;
+const WIDTH: usize = 512;
+const HEIGHT: usize = 512;
 
 const MIN_FLOW: f32 = 0.01;
 // const MAX_MASS: f32 = 1.0;

@@ -26,6 +26,7 @@ uniform float u_brush_size;
 uniform int u_drawing;
 uniform int u_drawing_type;
 uniform vec2 u_mouse;// mouse position in screen pixels
+uniform int u_rotation_signal;
 
 layout(shared, binding = 0) readonly buffer InputData {
     Cell curr_gen[];
@@ -71,6 +72,35 @@ void main() {
     Cell right = curr_gen[xy_right];
     Cell left = curr_gen[xy_left];
 
+    if (u_rotation_signal == 1) {
+        if (true || curr.type == CELL_BLOCK) {
+            if (xy_curr.x < u_resolution.x / 2) {
+                if (xy_curr.y < u_resolution.y - xy_curr.x - 1) {
+                    if (curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))].type != CELL_WATER) {
+                        next_gen[xy] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))];
+//                        mass_buffer[xy] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))].mass;
+                    }
+                    if (curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))].type != CELL_WATER) {
+                        next_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))];
+//                        mass_buffer[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))].mass;
+
+                    }
+                    if (curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))].type != CELL_WATER) {
+                        next_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))] = curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))];
+//                        mass_buffer[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))] = curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))].mass;
+                    }
+
+                    if (curr.type != CELL_WATER) {
+                        next_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))] = curr;
+//                        mass_buffer[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))] = curr.mass;
+                    }
+
+                }
+            }
+            return;
+        }
+    }
+
     if (u_drawing == DRAWING_ON) {
         Cell new_cell = Cell (
         u_drawing_type,
@@ -78,7 +108,8 @@ void main() {
         );
 
         if (u_drawing_type == CELL_WATER) {
-            new_cell.mass = 1.0 * MAX_MASS;
+            new_cell.mass = 1.0;
+            //            new_cell.mass = 1.0 * MAX_MASS;
         }
 
         int mouseX = int(u_mouse.x);
@@ -89,18 +120,21 @@ void main() {
             int height = int(sqrt(radius * radius - x * x));
             for (int y = -height; y < height; y++) {
                 int idx = toIndex(ivec2(mouseX, mouseY) + ivec2(x, y));
-                next_gen[idx] = new_cell;
-                mass_buffer[idx] = new_cell.mass;
+
+                if (curr_gen[idx].type == CELL_EMPTY) {
+                    next_gen[idx] = new_cell;
+                    mass_buffer[idx] = new_cell.mass;
+                }
             }
         }
     }
 
     if (curr.type == CELL_BLOCK) {
-//        if (above.type == CELL_WATER) {
-//            above.mass = above.mass - 1.0;
-//            next_gen[xy_above] = above;
-//            mass_buffer[xy_above] -= 1.0;
-//        }
+        //        if (above.type == CELL_WATER) {
+        //            above.mass = above.mass - 0.05;
+        //            next_gen[xy_above] = above;
+        //            mass_buffer[xy_above] -= 0.05;
+        //        }
 
         next_gen[xy] = curr;
         mass_buffer[xy] = 0.0;

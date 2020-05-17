@@ -12,10 +12,11 @@ use std::borrow::Borrow;
 
 const WINDOW_WIDTH: u32 = 512;
 const WINDOW_HEIGHT: u32 = 512;
-const FIELD_WIDTH: i32 = 256;
-const FIELD_HEIGHT: i32 = 256;
+const FIELD_WIDTH: i32 = 512;
+const FIELD_HEIGHT: i32 = 512;
 
 #[derive(Copy, Clone)]
+#[repr(i32)]
 enum CellType {
     Empty = 0,
     Block = 1,
@@ -213,6 +214,7 @@ impl Application {
         let mut mouse_x = 0.0;
         let mut mouse_y = 0.0;
         let mut brush_size = 1.0;
+        let mut rotation_signal = 0;
 
         while !self.window.should_close() {
             let (width, height) = self.window.get_size();
@@ -229,6 +231,7 @@ impl Application {
 
             self.glfw.poll_events();
 
+
             for (_, event) in glfw::flush_messages(&self.events) {
                 match event {
                     WindowEvent::Key(Key::Q, _, Action::Press, _) => self.window.set_should_close(true),
@@ -240,6 +243,12 @@ impl Application {
                     WindowEvent::Key(Key::R, _, Action::Press, _) => {
                         self.prev_sb.map_data(&Application::generate_cave(&self.field_size));
                         self.tmp_sb.map_data(&vec![0.0f32; (self.field_size.x * self.field_size.y) as usize]);
+                    }
+                    WindowEvent::Key(Key::J, _, Action::Press, _) => {
+                        rotation_signal = 1; // Clockwise
+                    }
+                    WindowEvent::Key(Key::K, _, Action::Press, _) => {
+                        rotation_signal = 2; // Counterclockwise
                     }
                     WindowEvent::Key(Key::Num1, _, Action::Press, _) => drawing_type = CellType::Block as i32,
                     WindowEvent::Key(Key::Num2, _, Action::Press, _) => drawing_type = CellType::Water as i32,
@@ -285,7 +294,8 @@ impl Application {
                 self.compute_program.set_uniform("u_drawing_type", Uniform::Int(drawing_type));
                 self.compute_program.set_uniform("u_mouse", Uniform::Vec2(mouse_x, mouse_y));
                 self.compute_program.set_uniform("u_brush_size", Uniform::Float(brush_size));
-
+                self.compute_program.set_uniform("u_rotation_signal", Uniform::Int(rotation_signal));
+                rotation_signal = 0;
                 self.compute_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
                 self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 1);
                 self.compute_program.bind_storage_buffer(self.tmp_sb.get_id(), 2);
