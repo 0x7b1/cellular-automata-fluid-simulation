@@ -4,6 +4,8 @@ layout(local_size_x = 8, local_size_y = 8) in;
 #define CELL_EMPTY 0
 #define CELL_BLOCK 1
 #define CELL_WATER 2
+#define CELL_ACID 3
+#define CELL_SAND 4
 
 #define DRAWING_ON 1
 
@@ -12,12 +14,12 @@ struct Cell {
     float mass;
 };
 
-const float MAX_MASS = 10.0;
-const float MIN_MASS = 0.0001;
-const float MAX_COMPRESS = 0.02;
+const float MAX_MASS = 1.0;
+const float MIN_MASS = 0.005;
+const float MAX_COMPRESSION = 0.625;
 const float MIN_FLOW = 0.01;
-const float FLOW_VARIANCE = 0.8;
-const float MAX_SPEED = 1.0;
+const float MAX_FLOW = 4.0;
+const float FLOW_SPEED = 1.0;
 
 uniform vec2 u_resolution;//  Canvas size (width,height)
 uniform float u_dt;
@@ -44,18 +46,39 @@ int toIndex(ivec2 pos) {
     return pos.x + pos.y * int(u_resolution.x);
 }
 
-float getStableState(float total_mass) {
-    if (total_mass <= 1.0) {
-        return 1.0;
-    } else if (total_mass < 2.0 * MAX_MASS + MAX_COMPRESS) {
-        return (MAX_MASS * MAX_MASS + total_mass * MAX_COMPRESS) / (MAX_MASS + MAX_COMPRESS);
+float getVerticalFlowValue(float total_mass) {
+    if (total_mass <= MAX_MASS) {
+        return MAX_MASS;
+    } else if (total_mass < 2.0 * MAX_MASS + MAX_COMPRESSION) {
+        return (MAX_MASS * MAX_MASS + total_mass * MAX_COMPRESSION) / (MAX_MASS + MAX_COMPRESSION);
     } else {
-        return (total_mass + MAX_COMPRESS) / 2.0;
+        return (total_mass + MAX_COMPRESSION) / 2.0;
     }
 }
 
 float rand(vec2 co){
     return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void rotateCanvas(ivec2 xy_curr, Cell curr) {
+    if (xy_curr.x < u_resolution.x / 2) {
+        if (xy_curr.y < u_resolution.y - xy_curr.x - 1) {
+            if (curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))].type != CELL_WATER) {
+                next_gen[toIndex(xy_curr)] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))];
+            }
+            if (curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))].type != CELL_WATER) {
+                next_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))];
+
+            }
+            if (curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))].type != CELL_WATER) {
+                next_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))] = curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))];
+            }
+
+            if (curr.type != CELL_WATER) {
+                next_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))] = curr;
+            }
+        }
+    }
 }
 
 void main() {
@@ -73,32 +96,8 @@ void main() {
     Cell left = curr_gen[xy_left];
 
     if (u_rotation_signal == 1) {
-        if (true || curr.type == CELL_BLOCK) {
-            if (xy_curr.x < u_resolution.x / 2) {
-                if (xy_curr.y < u_resolution.y - xy_curr.x - 1) {
-                    if (curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))].type != CELL_WATER) {
-                        next_gen[xy] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))];
-//                        mass_buffer[xy] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))].mass;
-                    }
-                    if (curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))].type != CELL_WATER) {
-                        next_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))];
-//                        mass_buffer[toIndex(ivec2(u_resolution.y - 1 - xy_curr.y, xy_curr.x))] = curr_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))].mass;
-
-                    }
-                    if (curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))].type != CELL_WATER) {
-                        next_gen[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))] = curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))];
-//                        mass_buffer[toIndex(ivec2(u_resolution.y - 1 - xy_curr.x, u_resolution.y - 1 - xy_curr.y))] = curr_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))].mass;
-                    }
-
-                    if (curr.type != CELL_WATER) {
-                        next_gen[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))] = curr;
-//                        mass_buffer[toIndex(ivec2(xy_curr.y, u_resolution.y - 1 - xy_curr.x))] = curr.mass;
-                    }
-
-                }
-            }
-            return;
-        }
+        rotateCanvas(xy_curr, curr);
+        return;
     }
 
     if (u_drawing == DRAWING_ON) {
@@ -108,8 +107,7 @@ void main() {
         );
 
         if (u_drawing_type == CELL_WATER) {
-            new_cell.mass = 1.0;
-            //            new_cell.mass = 1.0 * MAX_MASS;
+            new_cell.mass = 1.0 * MAX_MASS;
         }
 
         int mouseX = int(u_mouse.x);
@@ -130,16 +128,9 @@ void main() {
     }
 
     if (curr.type == CELL_BLOCK) {
-        //        if (above.type == CELL_WATER) {
-        //            above.mass = above.mass - 0.05;
-        //            next_gen[xy_above] = above;
-        //            mass_buffer[xy_above] -= 0.05;
-        //        }
-
         next_gen[xy] = curr;
         mass_buffer[xy] = 0.0;
         return;
-
     }
 
     float flow = 0.0;
@@ -147,12 +138,12 @@ void main() {
 
     if (remaining_mass > 0) {
         if (below.type != CELL_BLOCK) {
-            flow = getStableState(remaining_mass + below.mass) - below.mass;
-            if (flow > MIN_FLOW) {
-                flow *= 0.8;
+            flow = getVerticalFlowValue(remaining_mass + below.mass) - below.mass;
+            if (below.mass > 0 && flow > MIN_FLOW) {
+                flow *= FLOW_SPEED;
             }
 
-            flow = clamp(flow, 0.0, min(remaining_mass, MAX_SPEED));
+            flow = clamp(flow, 0.0, min(remaining_mass, MAX_FLOW));
 
             mass_buffer[xy] -= flow;
             mass_buffer[xy_below] += flow;
@@ -162,9 +153,9 @@ void main() {
 
     if (remaining_mass > 0) {
         if (left.type != CELL_BLOCK) {
-            flow = (curr.mass - left.mass) / 4.0;
+            flow = (remaining_mass - left.mass) / 3.0;
             if (flow > MIN_FLOW) {
-                flow *= 0.8;
+                flow *= FLOW_SPEED;
             }
 
             flow = clamp(flow, 0.0, remaining_mass);
@@ -177,9 +168,9 @@ void main() {
 
     if (remaining_mass > 0) {
         if (right.type != CELL_BLOCK) {
-            flow = (curr.mass - right.mass) / 4.0;
+            flow = (curr.mass - right.mass) / 3.0;
             if (flow > MIN_FLOW) {
-                flow *= 0.8;
+                flow *= FLOW_SPEED;
             }
 
             flow = clamp(flow, 0.0, remaining_mass);
@@ -190,15 +181,35 @@ void main() {
         }
     }
 
-    if (curr.mass > MIN_MASS) {
-        curr.type = CELL_WATER;
-    } else {
-        curr.type = CELL_EMPTY;
+    if (remaining_mass > 0) {
+        flow = remaining_mass - getVerticalFlowValue(remaining_mass + above.mass);
+        if (flow > MIN_FLOW) {
+            flow *= FLOW_SPEED;
+
+            flow = clamp(flow, 0, remaining_mass);
+
+            mass_buffer[xy] -= flow;
+            mass_buffer[xy_above] += flow;
+            remaining_mass -= flow;
+        }
     }
 
-    curr.mass = mass_buffer[xy];
+    if (curr.mass < MIN_MASS) {
+        curr.type = CELL_EMPTY;
+        curr.mass = mass_buffer[xy];
+    } else {
+        curr.type = CELL_WATER;
+        curr.mass = mass_buffer[xy];
+    }
+
     next_gen[xy] = curr;
 
-    //    memoryBarrier();
-    //    barrier();
+
+    if (curr.type == CELL_ACID) {
+        if (below.type == CELL_EMPTY) {
+            next_gen[xy] = Cell (CELL_ACID, 0.0);
+        }
+
+        return;
+    }
 }

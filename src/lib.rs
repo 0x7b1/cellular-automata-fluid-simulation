@@ -12,8 +12,8 @@ use std::borrow::Borrow;
 
 const WINDOW_WIDTH: u32 = 512;
 const WINDOW_HEIGHT: u32 = 512;
-const FIELD_WIDTH: i32 = 512;
-const FIELD_HEIGHT: i32 = 512;
+const FIELD_WIDTH: i32 = 256;
+const FIELD_HEIGHT: i32 = 256;
 
 #[derive(Copy, Clone)]
 #[repr(i32)]
@@ -21,6 +21,7 @@ enum CellType {
     Empty = 0,
     Block = 1,
     Water = 2,
+    Acid = 3,
 }
 
 impl Default for CellType {
@@ -202,8 +203,8 @@ impl Application {
     fn run(&mut self) -> Result<(), Box<dyn Error>> {
         self.glfw.set_swap_interval(glfw::SwapInterval::None);
 
-        // let update_time = 1.0 / 200.0;
-        let update_time = 1.0 / 40.0;
+        let update_time = 1.0 / 200.0;
+        // let update_time = 1.0 / 40.0;
         // let update_time = 1.0;
 
         let mut timer = 0.0;
@@ -234,7 +235,7 @@ impl Application {
 
             for (_, event) in glfw::flush_messages(&self.events) {
                 match event {
-                    WindowEvent::Key(Key::Q, _, Action::Press, _) => self.window.set_should_close(true),
+                    WindowEvent::Key(Key::Escape, _, Action::Press, _) => self.window.set_should_close(true),
                     WindowEvent::Key(Key::P, _, Action::Press, _) => self.is_paused = !self.is_paused,
                     WindowEvent::Key(Key::C, _, Action::Press, _) => {
                         self.prev_sb.map_data(&Application::get_empty_field(&self.field_size));
@@ -252,6 +253,7 @@ impl Application {
                     }
                     WindowEvent::Key(Key::Num1, _, Action::Press, _) => drawing_type = CellType::Block as i32,
                     WindowEvent::Key(Key::Num2, _, Action::Press, _) => drawing_type = CellType::Water as i32,
+                    WindowEvent::Key(Key::Num3, _, Action::Press, _) => drawing_type = CellType::Acid as i32,
                     WindowEvent::MouseButton(btn, action, mods) => {
                         match action {
                             glfw::Action::Press => drawing_cell = 1,

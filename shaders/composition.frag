@@ -7,10 +7,11 @@ uniform float u_dt;
 uniform vec2 u_mouse;
 uniform float u_brush_size;
 
-
 #define CELL_EMPTY 0
 #define CELL_BLOCK 1
 #define CELL_WATER 2
+#define CELL_ACID 3
+#define CELL_SAND 4
 
 struct Cell {
     int type;
@@ -28,9 +29,9 @@ layout(shared, binding = 2) buffer TmpData {
 out vec4 FragColor;
 
 vec3 hsv2rgb(vec3 c) {
-  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
 // https://github.com/MaxBittker/sandspiel/blob/master/js/glsl/sand.glsl
@@ -71,12 +72,22 @@ void main() {
     //    vec2 st = st / u_resolution.st;
     vec3 color = vec3(0.0);
 
-    if (cell_type == CELL_WATER) {
+    if (cell_type == 99) {
+        FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+        return;
+    } else if (cell_type == CELL_ACID) {
+        color = vec3(0, 1, 0);
+    } else if (cell_type == CELL_SAND)  {
+        color = vec3(1, 1, 0);
+        //        color += vec3(st.x, st.y, abs(sin(u_time)));
+        //        FragColor = vec4(color, 1.0);
+        //        return;
+    } else if (cell_type == CELL_WATER) {
         //        FragColor = vec4(0, 0, 1, 1);
-//        color += vec3(0, 0, 1.0);
-//        color += vec3(rand(xy), 0, 0);
+        //        color += vec3(0, 0, 1.0);
+        //        color += vec3(rand(xy), 0, 0);
         color += vec3(0, 0, rand(xy));
-//        color += vec3(0, 0, 1);
+        //        color += vec3(0, 0, 1);
         //        FragColor = vec4(0, 0, 1-cell.mass, 1);
     } else if (cell_type == CELL_BLOCK) {
         float rnd = rand(xy);
@@ -114,18 +125,20 @@ void main() {
     //    color = mix(vec3(0.0, 0.1, 0.2), vec3(1.0, 1.0, 0.6), d);
     color = mix(1-color, color, d);
 
-//    if (tmp_data[curr_coord] > 0.0) {
-//        FragColor = vec4(1, 0, 0, 1.0);
-//    } else {
-//        FragColor = vec4(0, 1, 0, 1.0);
-//    }
+    //    if (tmp_data[curr_coord] > 0.0) {
+    //        FragColor = vec4(1, 0, 0, 1.0);
+    //    } else {
+    //        FragColor = vec4(0, 1, 0, 1.0);
+    //    }
 
-        FragColor = vec4(color, 1.0);
-//        FragColor  = vec4(sin(vec3(tmp_data[curr_coord])), 1.0);
+    FragColor = vec4(color, 1.0);
+    //        FragColor  = vec4(sin(vec3(tmp_data[curr_coord])), 1.0);
 }
 
 /*
 https://thebookofshaders.com/edit.php?log=160909064723
 https://thebookofshaders.com/edit.php?log=160909064528
 https://thebookofshaders.com/edit.php?log=161127202429
+
+https://nullprogram.com/blog/2020/04/30/
 */
