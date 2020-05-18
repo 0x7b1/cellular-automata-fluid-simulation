@@ -76,7 +76,7 @@ void main() {
         FragColor = vec4(1.0, 0.0, 0.0, 1.0);
         return;
     } else if (cell_type == CELL_ACID) {
-        color = vec3(0, 1, 0);
+        color = vec3(0, rand(xy), 0);
     } else if (cell_type == CELL_SAND)  {
         color = vec3(1, 1, 0);
         //        color += vec3(st.x, st.y, abs(sin(u_time)));
@@ -85,17 +85,21 @@ void main() {
     } else if (cell_type == CELL_WATER) {
         //        FragColor = vec4(0, 0, 1, 1);
         //        color += vec3(0, 0, 1.0);
-        //        color += vec3(rand(xy), 0, 0);
-        color += vec3(0, 0, rand(xy));
+        //                color += vec3(0, 0, rand(xy));
+        color += hsv2rgb(vec3(0.60, 1, mix(0.7, 1, rand(xy))));
+
         //        color += vec3(0, 0, 1);
         //        FragColor = vec4(0, 0, 1-cell.mass, 1);
     } else if (cell_type == CELL_BLOCK) {
-        float rnd = rand(xy);
-        color += vec3(u_time * rnd, rnd, 0);
+        //        float rnd = rand(xy);
+        //        color += vec3(1.0, rnd, 0);
+        color +=hsv2rgb(vec3(0.075, 0.6, mix(rand(xy), 0.46, 0.77)));
+
     } else {
         //        st.x *= u_resolution.x / u_resolution.y;
-        color += vec3(st.x, st.y, abs(sin(u_time)));
-        //        color += vec3(1.0, 1.0, 0.6);
+//        color += vec3(st.x, st.y, abs(sin(u_time)));
+        //        color +=hsv2rgb(vec3(0.075, 0.6, mix(rand(xy), 0.18, 0.25)));
+        color +=hsv2rgb(vec3(0, 0.0, clamp(rand(xy), 0.0, 0.15)));
     }
 
     //    vec2 dist = u_mouse/u_resolution - st.st;
@@ -106,23 +110,12 @@ void main() {
 
     //    FragColor = vec4(color, 1.0);
 
-    //    vec2 p = st / u_resolution.xx;
-    //    vec4 m = vec4(mouse_coord.xy, mouse_coord.xy + vec2(u_brush_size)) / u_resolution.xxxx;
-    //
-    //    if (m.z > 0.0) {
-    //        float d = distanceToSegment(m.xy, m.zw, p);
-    //        color = mix(color, vec3(1.0, 1.0, 0.0), 1.0 - smoothstep(.004, 0.008, d));
-    //    }
-    //
-    //    color = mix(color, vec3(1.0, 0.0, 0.0), 1.0 - smoothstep(0.003, 0.03, length(p - m.xy)));
-
     // MOUSE RING
     // float d = circle(st - vec2(0.2), 0.01);
     float rad = mix(0.03, 0.08, u_brush_size / 7);
     float d = min(1.0, ring(st - mouse_coord, rad, 0.001));
-    d = smoothedge(d, 1.3);
+    d = smoothedge(d, 1.1);
 
-    //    color = mix(vec3(0.0, 0.1, 0.2), vec3(1.0, 1.0, 0.6), d);
     color = mix(1-color, color, d);
 
     //    if (tmp_data[curr_coord] > 0.0) {

@@ -194,22 +194,20 @@ void main() {
         }
     }
 
-    if (curr.mass < MIN_MASS) {
-        curr.type = CELL_EMPTY;
-        curr.mass = mass_buffer[xy];
-    } else {
-        curr.type = CELL_WATER;
-        curr.mass = mass_buffer[xy];
+    if (curr.type == CELL_EMPTY || curr.type == CELL_WATER) {
+        if (curr.mass < MIN_MASS) {
+            curr.type = CELL_EMPTY;
+            curr.mass = mass_buffer[xy];
+        } else {
+            curr.type = CELL_WATER;
+            curr.mass = mass_buffer[xy];
+        }
+        next_gen[xy] = curr;
+        return;
     }
 
-    next_gen[xy] = curr;
-
-
     if (curr.type == CELL_ACID) {
-        if (below.type == CELL_EMPTY) {
-            next_gen[xy] = Cell (CELL_ACID, 0.0);
-        }
-
-        return;
+        next_gen[xy] = Cell (CELL_EMPTY, 0.0);
+        next_gen[xy_below] = Cell (CELL_ACID, 0.0);
     }
 }
