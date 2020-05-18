@@ -1,4 +1,4 @@
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, channel};
 use std::error::Error;
 use std::cmp::min;
 use std::mem::swap;
@@ -14,6 +14,8 @@ const WINDOW_WIDTH: u32 = 512;
 const WINDOW_HEIGHT: u32 = 512;
 const FIELD_WIDTH: i32 = 256;
 const FIELD_HEIGHT: i32 = 256;
+const WIDTH: usize = FIELD_WIDTH as usize;
+const HEIGHT: usize = FIELD_HEIGHT as usize;
 
 #[derive(Copy, Clone)]
 #[repr(i32)]
@@ -174,14 +176,6 @@ impl Application {
         tmpVec[132 + 190 * 256] = 1.0;
         tmpVec[126 + 196 * 256] = 1.0;
 
-        // for i in 0..5 { // TODO: Fix falsy capture of unbounded data
-        //     for j in 0..5 {
-        //         if i == j {
-        //             tmpVec[(128 + i) + (190 + j) * 256] = 1.0;
-        //         }
-        //     }
-        // }
-
         let tmp_sb = StructuredBuffer::from(tmpVec);
 
         Ok(Application {
@@ -241,15 +235,12 @@ impl Application {
                         self.prev_sb.map_data(&Application::get_empty_field(&self.field_size));
                         self.tmp_sb.map_data(&vec![0.0f32; (self.field_size.x * self.field_size.y) as usize]);
                     }
-                    WindowEvent::Key(Key::R, _, Action::Press, _) => {
-                        self.prev_sb.map_data(&Application::generate_cave(&self.field_size));
+                    WindowEvent::Key(Key::N, _, Action::Press, _) => {
+                        self.prev_sb.map_data(&Application::generate_cave());
                         self.tmp_sb.map_data(&vec![0.0f32; (self.field_size.x * self.field_size.y) as usize]);
                     }
-                    WindowEvent::Key(Key::J, _, Action::Press, _) => {
-                        rotation_signal = 1; // Clockwise
-                    }
-                    WindowEvent::Key(Key::K, _, Action::Press, _) => {
-                        rotation_signal = 2; // Counterclockwise
+                    WindowEvent::Key(Key::R, _, Action::Press, _) => {
+                        rotation_signal = 1;
                     }
                     WindowEvent::Key(Key::Num1, _, Action::Press, _) => drawing_type = CellType::Block as i32,
                     WindowEvent::Key(Key::Num2, _, Action::Press, _) => drawing_type = CellType::Water as i32,
@@ -332,68 +323,139 @@ impl Application {
     }
 
     fn generate_map(field_size: &Vec2<i32>) -> Vec<Cell> {
-        let mut image = Vec::new();
+        let mut grid = Vec::new();
 
+        // New empty grid
         for _ in 0..field_size.x * field_size.y {
-            image.push(Cell {
+            grid.push(Cell {
                 element_type: CellType::Empty as i32,
                 mass: 0.0,
             });
         }
 
-        for i in 0..256 {
-            image[i as usize + (128 * field_size.x as usize)] = Cell {
-                element_type: CellType::Block as i32,
-                mass: 0.0,
-            };
+        // Initial Test Case
+        for i in 100..190 {
+            grid[i as usize + (128 * field_size.x as usize)] = Cell { element_type: CellType::Block as i32, mass: 0.0 };
+            grid[i as usize + (129 * field_size.x as usize)] = Cell { element_type: CellType::Block as i32, mass: 0.0 };
+            grid[i as usize + (130 * field_size.x as usize)] = Cell { element_type: CellType::Block as i32, mass: 0.0 };
         }
 
-        // for i in 0..5 {
-        //     for j in 0..5 {
-        //         if i == j {
-        //             image[(128 + i) + (190 + j) * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-        //         }
-        //     }
-        // }
-
-        image[129 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-        image[129 + 200 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
-        image[129 + 210 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
-        image[129 + 180 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
-        image[129 + 170 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
-        image[129 + 160 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
-        image[129 + 120 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 }; // THIS IS NOT RENDERED
-
-        image[132 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-        image[126 + 196 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-
-        // image[129 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-        // image[130 + 193 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-        // image[131 + 191 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-        // image[132 + 192 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
-
-        image
-    }
-
-    fn generate_cave(field_size: &Vec2<i32>) -> Vec<Cell> {
-        let mut rng = rand::thread_rng();
-        let mut image = Vec::new();
-
-        for _ in 0..field_size.x * field_size.y {
-            if rng.gen::<f32>() < 0.2 {
-                image.push(Cell {
-                    element_type: CellType::Block as i32,
-                    mass: 0.0,
-                })
-            } else {
-                image.push(Cell {
-                    element_type: CellType::Empty as i32,
-                    mass: 0.0,
-                })
+        for i in 0..5 {
+            for j in 0..5 {
+                if i == j {
+                    grid[(128 + i) + (190 + j) * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+                }
             }
         }
 
-        image
+        grid[129 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[129 + 200 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[129 + 210 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[129 + 180 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[129 + 170 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[129 + 160 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[129 + 120 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[132 + 190 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+        grid[126 + 196 * 256] = Cell { element_type: CellType::Water as i32, mass: 1.0 };
+
+        grid
+    }
+
+    fn initialize_cave() -> [[bool; WIDTH]; HEIGHT] {
+        let mut cave_map = [[false; WIDTH]; HEIGHT];
+        let chance_to_start_alive = 0.38;
+
+        for i in 0..WIDTH {
+            for j in 0..HEIGHT {
+                let chance: f64 = rand::thread_rng().gen();
+                if chance < chance_to_start_alive {
+                    cave_map[i][j] = true;
+                }
+            }
+        }
+
+        cave_map
+    }
+
+    fn count_neighbours(map: [[bool; WIDTH]; HEIGHT], x: usize, y: usize) -> i32 {
+        let mut count_n = 0;
+
+        for ii in 0..3 {
+            for jj in 0..3 {
+                let i = ii as i32 - 1;
+                let j = jj as i32 - 1;
+
+                if i == 0 && j == 0 {
+                    continue;
+                }
+
+                let n_x = x as i32 + i;
+                let n_y = y as i32 + j;
+
+                if n_x < 0 || n_y < 0 || n_x >= WIDTH as i32 || n_y >= HEIGHT as i32 {
+                    count_n += 1;
+                } else if map[n_x as usize][n_y as usize] {
+                    count_n += 1;
+                }
+            }
+        }
+
+        count_n
+    }
+
+    fn do_cave_generation_step(old_map: [[bool; WIDTH]; HEIGHT]) -> [[bool; WIDTH]; HEIGHT] {
+        let mut new_map = [[false; WIDTH]; HEIGHT];
+        let death_limit = 3;
+        let birth_limit = 3;
+
+        for i in 0..WIDTH {
+            for j in 0..HEIGHT {
+                let nbs = Application::count_neighbours(old_map, i, j);
+                if old_map[i][j] {
+                    if nbs < death_limit {
+                        new_map[i][j] = false;
+                    } else {
+                        new_map[i][j] = true;
+                    }
+                } else {
+                    if nbs > birth_limit {
+                        new_map[i][j] = true;
+                    } else {
+                        new_map[i][j] = false;
+                    }
+                }
+            }
+        }
+
+        new_map
+    }
+
+    fn generate_cave() -> Vec<Cell> {
+        let mut grid = vec![Cell::default(); WIDTH * HEIGHT];
+        let mut cave_map = Application::initialize_cave();
+
+        for _ in 0..4 {
+            cave_map = Application::do_cave_generation_step(cave_map);
+        }
+
+        for i in 0..WIDTH {
+            for j in 0..HEIGHT {
+                let idx = (i + j * WIDTH as usize);
+                if cave_map[i][j] {
+                    grid[idx] = Cell {
+                        element_type: CellType::Empty as i32,
+                        mass: 0.0,
+                    };
+                } else {
+                    grid[idx] = Cell {
+                        element_type: CellType::Block as i32,
+                        mass: 0.0,
+                    };
+                }
+            }
+        }
+
+        grid
     }
 
     fn get_empty_field(field_size: &Vec2<i32>) -> Vec<Cell> {
