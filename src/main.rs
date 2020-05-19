@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{BufReader, BufRead, Read};
 use std::path::Path;
 use rand::Rng;
+use std::time::Instant;
 
 use minifb::{
     Key,
@@ -15,15 +16,11 @@ use minifb::{
 use vek::Vec2;
 use std::ops::Sub;
 
-const FRAME_DELAY: u64 = 0;
-// const FRAME_DELAY: u64 = 16600 * 2;
-// const WIDTH: usize = 200;
-// const HEIGHT: usize = 200;
-const WIDTH: usize = 900;
-const HEIGHT: usize = 900;
+const WIDTH: usize = 1300;
+const HEIGHT: usize = 1300;
 
+const FRAME_DELAY: u64 = 0;
 const MIN_FLOW: f32 = 0.01;
-// const MAX_MASS: f32 = 1.0;
 const MAX_MASS: f32 = 10.0;
 const MAX_COMPRESS: f32 = 0.02;
 const MIN_MASS: f32 = 0.0001;
@@ -102,13 +99,13 @@ impl Widget {
 }
 
 struct World {
-    water: [i32; WIDTH],
-    energy: [i32; WIDTH],
-    ground: [i32; WIDTH],
+    water: Box<Vec<i32>>,
+    energy: Box<Vec<i32>>,
+    ground: Box<Vec<i32>>,
 
-    mass: [[f32; WIDTH]; HEIGHT],
-    new_mass: [[f32; WIDTH]; HEIGHT],
-    blocks: [[Cell; WIDTH]; HEIGHT],
+    mass: Box<Vec<Vec<f32>>>,
+    new_mass: Box<Vec<Vec<f32>>>,
+    blocks: Box<Vec<Vec<Cell>>>,
 
     widgets: Vec<Widget>,
     selected_element: Cell,
@@ -138,13 +135,14 @@ fn test_lerp() {
 impl World {
     fn new() -> Self {
         let mut this = Self {
-            energy: [0; WIDTH],
-            water: [0; WIDTH],
-            ground: [10; WIDTH],
+            water: Box::new(vec![0; WIDTH]),
+            energy: Box::new(vec![0; WIDTH]),
+            ground: Box::new(vec![0; WIDTH]),
 
-            mass: [[0.0; WIDTH]; HEIGHT],
-            new_mass: [[0.0; WIDTH]; HEIGHT],
-            blocks: [[Cell::empty(); WIDTH]; HEIGHT],
+            mass: Box::new(vec![vec![0.0; WIDTH]; HEIGHT]),
+            new_mass: Box::new(vec![vec![0.0; WIDTH]; HEIGHT]),
+            blocks: Box::new(vec![vec![Cell::empty(); WIDTH]; HEIGHT]),
+
             widgets: Vec::new(),
             selected_element: Cell::Ground,
         };
@@ -167,12 +165,12 @@ impl World {
     }
 
     fn clear_map(&mut self) {
-        self.energy = [0; WIDTH];
-        self.water = [0; WIDTH];
-        self.ground = [10; WIDTH];
-        self.mass = [[0.0; WIDTH]; HEIGHT];
-        self.new_mass = [[0.0; WIDTH]; HEIGHT];
-        self.blocks = [[Cell::empty(); WIDTH]; HEIGHT];
+        self.water = Box::new(vec![0; WIDTH]);
+        self.energy = Box::new(vec![0; WIDTH]);
+        self.ground = Box::new(vec![0; WIDTH]);
+        self.mass = Box::new(vec![vec![0.0; WIDTH]; HEIGHT]);
+        self.new_mass = Box::new(vec![vec![0.0; WIDTH]; HEIGHT]);
+        self.blocks = Box::new(vec![vec![Cell::empty(); WIDTH]; HEIGHT]);
     }
 
     fn tick(&mut self) {
@@ -252,7 +250,6 @@ impl World {
                 if remaining_mass <= 0.0 {
                     continue;
                 }
-/*
 
                 // Up. Only compressed water flows upwards
                 if blocks[x][y - 1] != Cell::Ground {
@@ -267,7 +264,6 @@ impl World {
                     new_mass[x][y - 1] += flow;
                     remaining_mass -= flow;
                 }
-                */
             }
         }
 
@@ -298,8 +294,8 @@ impl World {
             new_mass[WIDTH - 1][y] = 0.0;
         }
 
-        self.mass = new_mass;
-        self.new_mass = new_mass;
+        self.mass = new_mass.clone();
+        self.new_mass = new_mass.clone();
         self.blocks = blocks;
     }
 
@@ -309,10 +305,10 @@ impl World {
                 self.blocks[x][y] = Cell::Water;
                 // self.mass[x][y] = MAX_MASS;
                 self.mass[x][y] = MAX_MASS * 10.0;
-                self.mass[x+1][y] = MAX_MASS * 10.0;
-                self.mass[x+2][y] = MAX_MASS * 10.0;
-                self.mass[x-1][y] = MAX_MASS * 10.0;
-                self.mass[x-2][y] = MAX_MASS * 10.0;
+                self.mass[x + 1][y] = MAX_MASS * 10.0;
+                self.mass[x + 2][y] = MAX_MASS * 10.0;
+                self.mass[x - 1][y] = MAX_MASS * 10.0;
+                self.mass[x - 2][y] = MAX_MASS * 10.0;
             }
             Cell::Ground => {
                 self.blocks[x][y] = Cell::Ground;
@@ -409,7 +405,7 @@ impl World {
     }
 
     fn rotate_canvas_anticlockwise(&mut self) {
-        let mut blocks = self.blocks;
+        let mut blocks = self.blocks.clone();
 
         // Processing each block one by one
         for i in 0..WIDTH / 2 {
@@ -437,7 +433,7 @@ impl World {
     }
 
     fn rotate_canvas_clockwise(&mut self) {
-        let mut blocks = self.blocks;
+        let mut blocks = self.blocks.clone();
 
         // Traverse each cycle
         for i in 0..WIDTH / 2 {
@@ -527,7 +523,7 @@ impl World {
 
     fn generate_map(&mut self) {
         self.clear_map();
-        let mut blocks = self.blocks;
+        let mut blocks = self.blocks.clone();
         let mut cave_map = self.initialize_cave();
 
         for _ in 0..3 {
@@ -567,12 +563,13 @@ fn cpu_rendering() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(FRAME_DELAY)));
     window.set_cursor_style(CursorStyle::Crosshair);
 
+    let mut fps_now = Instant::now();
+    let mut fps_time_diff;
+    let mut fps_counter = 0;
+
+    let mut tick_time;
+
     while window.is_open() && !window.is_key_down(Key::Escape) {
-
-        // if window.is_key_pressed(Key::F, KeyRepeat::No) {
-        //     println!("DOING THIS");
-        // }
-
         window.get_keys_pressed(KeyRepeat::No).map(|keys| {
             for t in keys {
                 match t {
@@ -597,23 +594,36 @@ fn cpu_rendering() {
         //     println!("-> {:?}", scroll);
         // });
 
+        tick_time = Instant::now();
+
         world.tick();
         world.render(&mut buff);
-
-        // window.get_mouse_pos(MouseMode::Clamp).map(|(x, y)| {
-        //     buff[y as usize * WIDTH + x as usize] = Color::Red.get_hex();
-        // });
 
         window
             .update_with_buffer(&buff, WIDTH, HEIGHT)
             .unwrap();
+
+        println!("Tick Time: {}", tick_time.elapsed().as_micros());
+
+        // FPS Calculation
+        fps_counter += 1;
+        fps_time_diff = fps_now.elapsed().as_secs();
+
+        if fps_time_diff > 1 {
+            // println!("FPS: {}", fps_counter as f64 / fps_time_diff as f64);
+            fps_counter = 0;
+            fps_now = Instant::now();
+        }
+    }
+}
+
+fn gpu_rendering() {
+    if let Err(failure) = automata_sandbox::run_simulation() {
+        eprintln!("Application failed: {}", failure);
     }
 }
 
 fn main() {
     cpu_rendering();
-
-    // if let Err(failure) = automata_sandbox::run_simulation() {
-    //     eprintln!("Application failed: {}", failure);
-    // }
+    // gpu_rendering();
 }

@@ -10,8 +10,8 @@ use glw::{Color, RenderTarget, Shader, Uniform, Vec2, MemoryBarrier};
 use rand::Rng;
 use std::borrow::Borrow;
 
-const WINDOW_WIDTH: u32 = 800;
-const WINDOW_HEIGHT: u32 = 800;
+const WINDOW_WIDTH: u32 = 512;
+const WINDOW_HEIGHT: u32 = 512;
 const FIELD_WIDTH: i32 = 512;
 const FIELD_HEIGHT: i32 = 512;
 const WIDTH: usize = FIELD_WIDTH as usize;
@@ -135,7 +135,6 @@ impl Application {
             let mut f_shader = Shader::new(ShaderType::Fragment);
 
             v_shader.load_from_file("shaders/passthrough.vert").unwrap();
-            // f_shader.load_from_file("shaders/composition_experiments.frag").unwrap();
             f_shader.load_from_file("shaders/composition.frag").unwrap();
 
             glw::PipelineBuilder::new()
@@ -161,10 +160,10 @@ impl Application {
 
         let image_data = Application::generate_map(&field_size);
 
-        let prev_sb = StructuredBuffer::from(image_data);
+        let prev_sb = StructuredBuffer::from(*image_data);
         let curr_sb = StructuredBuffer::new((field_size.x * field_size.y) as usize);
 
-        let mut tmp_vec = vec![0.0f32; (field_size.x * field_size.y) as usize];
+        let mut tmp_vec = Box::new(vec![0.0f32; (field_size.x * field_size.y) as usize]);
 
         tmp_vec[129 + 190 * 256] = 1.0;
         tmp_vec[129 + 200 * 256] = 1.0;
@@ -176,7 +175,7 @@ impl Application {
         tmp_vec[132 + 190 * 256] = 1.0;
         tmp_vec[126 + 196 * 256] = 1.0;
 
-        let tmp_sb = StructuredBuffer::from(tmp_vec);
+        let tmp_sb = StructuredBuffer::from(*tmp_vec);
 
         Ok(Application {
             glfw,
@@ -197,8 +196,8 @@ impl Application {
     fn run(&mut self) -> Result<(), Box<dyn Error>> {
         self.glfw.set_swap_interval(glfw::SwapInterval::None);
 
-        let update_time = 1.0 / 100.0;
-        // let update_time = 0.0;
+        // let update_time = 1.0 / 200.0;
+        let update_time = 0.0;
 
         let mut timer = 0.0;
         let mut time = self.get_time();
@@ -323,8 +322,8 @@ impl Application {
         Ok(())
     }
 
-    fn generate_map(field_size: &Vec2<i32>) -> Vec<Cell> {
-        let mut grid = Vec::new();
+    fn generate_map(field_size: &Vec2<i32>) -> Box<Vec<Cell>> {
+        let mut grid = Box::new(Vec::new());
 
         // New empty grid
         for _ in 0..field_size.x * field_size.y {
