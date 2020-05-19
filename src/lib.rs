@@ -10,10 +10,10 @@ use glw::{Color, RenderTarget, Shader, Uniform, Vec2, MemoryBarrier};
 use rand::Rng;
 use std::borrow::Borrow;
 
-const WINDOW_WIDTH: u32 = 512;
-const WINDOW_HEIGHT: u32 = 512;
-const FIELD_WIDTH: i32 = 256;
-const FIELD_HEIGHT: i32 = 256;
+const WINDOW_WIDTH: u32 = 800;
+const WINDOW_HEIGHT: u32 = 800;
+const FIELD_WIDTH: i32 = 512;
+const FIELD_HEIGHT: i32 = 512;
 const WIDTH: usize = FIELD_WIDTH as usize;
 const HEIGHT: usize = FIELD_HEIGHT as usize;
 
@@ -164,19 +164,19 @@ impl Application {
         let prev_sb = StructuredBuffer::from(image_data);
         let curr_sb = StructuredBuffer::new((field_size.x * field_size.y) as usize);
 
-        let mut tmpVec = vec![0.0f32; (field_size.x * field_size.y) as usize];
+        let mut tmp_vec = vec![0.0f32; (field_size.x * field_size.y) as usize];
 
-        tmpVec[129 + 190 * 256] = 1.0;
-        tmpVec[129 + 200 * 256] = 1.0;
-        tmpVec[129 + 210 * 256] = 1.0;
-        tmpVec[129 + 180 * 256] = 1.0;
-        tmpVec[129 + 170 * 256] = 1.0;
-        tmpVec[129 + 160 * 256] = 1.0;
-        tmpVec[129 + 120 * 256] = 1.0;
-        tmpVec[132 + 190 * 256] = 1.0;
-        tmpVec[126 + 196 * 256] = 1.0;
+        tmp_vec[129 + 190 * 256] = 1.0;
+        tmp_vec[129 + 200 * 256] = 1.0;
+        tmp_vec[129 + 210 * 256] = 1.0;
+        tmp_vec[129 + 180 * 256] = 1.0;
+        tmp_vec[129 + 170 * 256] = 1.0;
+        tmp_vec[129 + 160 * 256] = 1.0;
+        tmp_vec[129 + 120 * 256] = 1.0;
+        tmp_vec[132 + 190 * 256] = 1.0;
+        tmp_vec[126 + 196 * 256] = 1.0;
 
-        let tmp_sb = StructuredBuffer::from(tmpVec);
+        let tmp_sb = StructuredBuffer::from(tmp_vec);
 
         Ok(Application {
             glfw,
@@ -197,9 +197,8 @@ impl Application {
     fn run(&mut self) -> Result<(), Box<dyn Error>> {
         self.glfw.set_swap_interval(glfw::SwapInterval::None);
 
-        let update_time = 1.0 / 200.0;
-        // let update_time = 1.0 / 40.0;
-        // let update_time = 1.0;
+        let update_time = 1.0 / 100.0;
+        // let update_time = 0.0;
 
         let mut timer = 0.0;
         let mut time = self.get_time();
@@ -288,7 +287,7 @@ impl Application {
                 self.compute_program.set_uniform("u_mouse", Uniform::Vec2(mouse_x, mouse_y));
                 self.compute_program.set_uniform("u_brush_size", Uniform::Float(brush_size));
                 self.compute_program.set_uniform("u_rotation_signal", Uniform::Int(rotation_signal));
-                rotation_signal = 0;
+
                 self.compute_program.bind_storage_buffer(self.prev_sb.get_id(), 0);
                 self.compute_program.bind_storage_buffer(self.curr_sb.get_id(), 1);
                 self.compute_program.bind_storage_buffer(self.tmp_sb.get_id(), 2);
@@ -304,6 +303,8 @@ impl Application {
                 self.gl_ctx.memory_barrier(MemoryBarrier::ShaderStorage);
 
                 swap(&mut self.curr_sb, &mut self.prev_sb);
+
+                rotation_signal = 0;
             }
 
             self.gl_ctx.bind_pipeline(&self.render_program);

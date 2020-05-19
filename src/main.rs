@@ -19,8 +19,8 @@ const FRAME_DELAY: u64 = 0;
 // const FRAME_DELAY: u64 = 16600 * 2;
 // const WIDTH: usize = 200;
 // const HEIGHT: usize = 200;
-const WIDTH: usize = 512;
-const HEIGHT: usize = 512;
+const WIDTH: usize = 900;
+const HEIGHT: usize = 900;
 
 const MIN_FLOW: f32 = 0.01;
 // const MAX_MASS: f32 = 1.0;
@@ -308,7 +308,11 @@ impl World {
             Cell::Water => {
                 self.blocks[x][y] = Cell::Water;
                 // self.mass[x][y] = MAX_MASS;
-                self.mass[x][y] = MAX_MASS * 5.0;
+                self.mass[x][y] = MAX_MASS * 10.0;
+                self.mass[x+1][y] = MAX_MASS * 10.0;
+                self.mass[x+2][y] = MAX_MASS * 10.0;
+                self.mass[x-1][y] = MAX_MASS * 10.0;
+                self.mass[x-2][y] = MAX_MASS * 10.0;
             }
             Cell::Ground => {
                 self.blocks[x][y] = Cell::Ground;
@@ -553,7 +557,7 @@ fn cpu_rendering() {
         WIDTH,
         HEIGHT,
         WindowOptions {
-            scale: minifb::Scale::X2,
+            scale: minifb::Scale::X1,
             ..WindowOptions::default()
         },
     ).unwrap_or_else(|e| {
@@ -563,7 +567,7 @@ fn cpu_rendering() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(FRAME_DELAY)));
     window.set_cursor_style(CursorStyle::Crosshair);
 
-    while window.is_open() && !window.is_key_down(Key::Q) {
+    while window.is_open() && !window.is_key_down(Key::Escape) {
 
         // if window.is_key_pressed(Key::F, KeyRepeat::No) {
         //     println!("DOING THIS");
@@ -607,9 +611,9 @@ fn cpu_rendering() {
 }
 
 fn main() {
-    // cpu_rendering();
+    cpu_rendering();
 
-    if let Err(failure) = automata_sandbox::run_simulation() {
-        eprintln!("Application failed: {}", failure);
-    }
+    // if let Err(failure) = automata_sandbox::run_simulation() {
+    //     eprintln!("Application failed: {}", failure);
+    // }
 }
