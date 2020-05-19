@@ -624,6 +624,6 @@ fn gpu_rendering() {
 }
 
 fn main() {
-    cpu_rendering();
-    // gpu_rendering();
+    // cpu_rendering();
+    gpu_rendering();
 }

@@ -12,8 +12,8 @@ use std::borrow::Borrow;
 
 const WINDOW_WIDTH: u32 = 512;
 const WINDOW_HEIGHT: u32 = 512;
-const FIELD_WIDTH: i32 = 512;
-const FIELD_HEIGHT: i32 = 512;
+const FIELD_WIDTH: i32 = 256;
+const FIELD_HEIGHT: i32 = 256;
 const WIDTH: usize = FIELD_WIDTH as usize;
 const HEIGHT: usize = FIELD_HEIGHT as usize;
 
@@ -196,8 +196,8 @@ impl Application {
     fn run(&mut self) -> Result<(), Box<dyn Error>> {
         self.glfw.set_swap_interval(glfw::SwapInterval::None);
 
-        // let update_time = 1.0 / 200.0;
-        let update_time = 0.0;
+        let update_time = 1.0 / 200.0;
+        // let update_time = 0.0;
 
         let mut timer = 0.0;
         let mut time = self.get_time();
