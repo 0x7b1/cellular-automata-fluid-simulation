@@ -1,7 +1,19 @@
 # Cellular Automata fluid simulation
 
+_TODO: Description_
+
+
+![Screenshot](benches/gpu_sim_1.gif)
+
 ## How to run
 
+```rust
+cargo run
+```
+## Benchmarks
+
+![fps](benches/2020-05-19_221255_cropped.png)
+![ms](benches/2020-05-19_221318_cropped.png)
 
 ### Resources
 
