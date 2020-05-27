@@ -11,20 +11,23 @@ You can find more about the journey of this project [here](https://courses.cs.ut
 ## How to play
 
 - The elements that can be drawn on the canvas are:
-  - Water <kbd>NumKey 1</kbd>
-  - Ground <kbd>NumKey 2</kbd>
+  - Ground <kbd>NumKey 1</kbd>
+  - Water <kbd>NumKey 2</kbd>
   - Acid <kbd>NumKey 3</kbd>
 - Increase the size of the brush with the mouse wheel 
 - Generate a new procedural cave map with <kbd>N</kbd>
 - Clean the map with <kbd>C</kbd>
 - Rotate the map with <kbd>R</kbd>
+- Quit the program with <kbd>Esc</kbd>
 
-## Requirements
+## How to build
+
+### Dependencies
 
 - Rust
 - GLFW
 
-## How to run
+### Building from source
 
 - Clone the repository
 
