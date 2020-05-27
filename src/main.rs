@@ -16,8 +16,8 @@ use minifb::{
 use vek::Vec2;
 use std::ops::Sub;
 
-const WIDTH: usize = 1300;
-const HEIGHT: usize = 1300;
+const WIDTH: usize = 1000;
+const HEIGHT: usize = 1000;
 
 const FRAME_DELAY: u64 = 0;
 const MIN_FLOW: f32 = 0.01;
