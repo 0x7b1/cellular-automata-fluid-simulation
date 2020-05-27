@@ -10,7 +10,7 @@ You can find more about the journey of this project [here](https://courses.cs.ut
 
 ## How to play
 
-- The elements that can be drawm on the canvas are:
+- The elements that can be drawn on the canvas are:
   - Water <kbd>NumKey 1</kbd>
   - Ground <kbd>NumKey 2</kbd>
   - Acid <kbd>NumKey 3</kbd>
