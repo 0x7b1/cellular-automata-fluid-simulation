@@ -88,35 +88,27 @@ impl Application {
     fn new() -> Result<Application, Box<dyn Error>> {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS)?;
 
-        // glfw.window_hint(WindowHint::Resizable(false));
+        glfw.window_hint(WindowHint::Resizable(false));
         glfw.window_hint(WindowHint::ContextVersion(4, 5));
         glfw.window_hint(WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
 
-        // let (mut window, events) = glfw.create_window(
-        //     WINDOW_WIDTH,
-        //     WINDOW_HEIGHT,
-        //     "Simulation",
-        //     glfw::WindowMode::Windowed,
-        // ).unwrap();
+        let (mut window, events) = glfw.create_window(
+            WINDOW_WIDTH,
+            WINDOW_HEIGHT,
+            "CA Simulation",
+            glfw::WindowMode::Windowed,
+        ).unwrap();
 
-        // let (mut window, events) = glfw.create_window(
-        //     WINDOW_WIDTH,
-        //     WINDOW_HEIGHT,
-        //     "Simulation",
-        //     // glfw::WindowMode::FullScreen(),
-        //     glfw::WindowMode::Windowed,
-        // ).unwrap();
-
-        let (mut window, events) = glfw.with_primary_monitor(|glfw, m| {
-            glfw.create_window(
-                WINDOW_WIDTH,
-                WINDOW_HEIGHT,
-                "Simulation",
-                m.map_or(glfw::WindowMode::Windowed, |m| {
-                    glfw::WindowMode::FullScreen(m)
-                }),
-            )
-        }).unwrap();
+        // let (mut window, events) = glfw.with_primary_monitor(|glfw, m| {
+        //     glfw.create_window(
+        //         WINDOW_WIDTH,
+        //         WINDOW_HEIGHT,
+        //         "Simulation",
+        //         m.map_or(glfw::WindowMode::Windowed, |m| {
+        //             glfw::WindowMode::FullScreen(m)
+        //         }),
+        //     )
+        // }).unwrap();
 
         // Settup up the OpenGL context
         let mut ctx = glw::GLContext::new(&mut window);
@@ -216,7 +208,7 @@ impl Application {
     fn run(&mut self) -> Result<(), Box<dyn Error>> {
         self.glfw.set_swap_interval(glfw::SwapInterval::None);
 
-        let update_time = 1.0 / 200.0;
+        let update_time = 1.0 / 400.0;
         // let update_time = 0.0;
 
         let mut timer = 0.0;
