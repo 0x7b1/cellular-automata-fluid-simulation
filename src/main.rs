@@ -16,8 +16,8 @@ use minifb::{
 use vek::Vec2;
 use std::ops::Sub;
 
-const WIDTH: usize = 1000;
-const HEIGHT: usize = 1000;
+const WIDTH: usize = 300;
+const HEIGHT: usize = 300;
 
 const FRAME_DELAY: u64 = 0;
 const MIN_FLOW: f32 = 0.01;
@@ -553,7 +553,7 @@ fn cpu_rendering() {
         WIDTH,
         HEIGHT,
         WindowOptions {
-            scale: minifb::Scale::X1,
+            scale: minifb::Scale::X2,
             ..WindowOptions::default()
         },
     ).unwrap_or_else(|e| {
@@ -563,11 +563,10 @@ fn cpu_rendering() {
     window.limit_update_rate(Some(std::time::Duration::from_micros(FRAME_DELAY)));
     window.set_cursor_style(CursorStyle::Crosshair);
 
-    let mut fps_now = Instant::now();
-    let mut fps_time_diff;
-    let mut fps_counter = 0;
-
-    let mut tick_time;
+    // let mut fps_now = Instant::now();
+    // let mut fps_time_diff;
+    // let mut fps_counter = 0;
+    // let mut tick_time;
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         window.get_keys_pressed(KeyRepeat::No).map(|keys| {
@@ -593,8 +592,7 @@ fn cpu_rendering() {
         // window.get_scroll_wheel().map(|scroll| {
         //     println!("-> {:?}", scroll);
         // });
-
-        tick_time = Instant::now();
+        // tick_time = Instant::now();
 
         world.tick();
         world.render(&mut buff);
@@ -603,17 +601,17 @@ fn cpu_rendering() {
             .update_with_buffer(&buff, WIDTH, HEIGHT)
             .unwrap();
 
-        println!("Tick Time: {}", tick_time.elapsed().as_micros());
+        // println!("Tick Time: {}", tick_time.elapsed().as_micros());
 
         // FPS Calculation
-        fps_counter += 1;
-        fps_time_diff = fps_now.elapsed().as_secs();
+        // fps_counter += 1;
+        // fps_time_diff = fps_now.elapsed().as_secs();
 
-        if fps_time_diff > 1 {
+        // if fps_time_diff > 1 {
             // println!("FPS: {}", fps_counter as f64 / fps_time_diff as f64);
-            fps_counter = 0;
-            fps_now = Instant::now();
-        }
+            // fps_counter = 0;
+            // fps_now = Instant::now();
+        // }
     }
 }
 

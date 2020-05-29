@@ -88,14 +88,22 @@ impl Application {
     fn new() -> Result<Application, Box<dyn Error>> {
         let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS)?;
 
-        glfw.window_hint(WindowHint::Resizable(false));
+        // glfw.window_hint(WindowHint::Resizable(false));
         glfw.window_hint(WindowHint::ContextVersion(4, 5));
         glfw.window_hint(WindowHint::OpenGlProfile(glfw::OpenGlProfileHint::Core));
+
+        // let (mut window, events) = glfw.create_window(
+        //     WINDOW_WIDTH,
+        //     WINDOW_HEIGHT,
+        //     "Simulation",
+        //     glfw::WindowMode::Windowed,
+        // ).unwrap();
 
         let (mut window, events) = glfw.create_window(
             WINDOW_WIDTH,
             WINDOW_HEIGHT,
             "Simulation",
+            // glfw::WindowMode::FullScreen(),
             glfw::WindowMode::Windowed,
         ).unwrap();
 
@@ -103,6 +111,7 @@ impl Application {
         let mut ctx = glw::GLContext::new(&mut window);
 
         window.set_cursor_mode(CursorMode::Hidden);
+        // window.set_cursor_mode(CursorMode::Disabled);
         window.make_current();
 
         // window.set_all_polling(true);
