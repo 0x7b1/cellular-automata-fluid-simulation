@@ -99,19 +99,30 @@ impl Application {
         //     glfw::WindowMode::Windowed,
         // ).unwrap();
 
-        let (mut window, events) = glfw.create_window(
-            WINDOW_WIDTH,
-            WINDOW_HEIGHT,
-            "Simulation",
-            // glfw::WindowMode::FullScreen(),
-            glfw::WindowMode::Windowed,
-        ).unwrap();
+        // let (mut window, events) = glfw.create_window(
+        //     WINDOW_WIDTH,
+        //     WINDOW_HEIGHT,
+        //     "Simulation",
+        //     // glfw::WindowMode::FullScreen(),
+        //     glfw::WindowMode::Windowed,
+        // ).unwrap();
+
+        let (mut window, events) = glfw.with_primary_monitor(|glfw, m| {
+            glfw.create_window(
+                WINDOW_WIDTH,
+                WINDOW_HEIGHT,
+                "Simulation",
+                m.map_or(glfw::WindowMode::Windowed, |m| {
+                    glfw::WindowMode::FullScreen(m)
+                }),
+            )
+        }).unwrap();
 
         // Settup up the OpenGL context
         let mut ctx = glw::GLContext::new(&mut window);
 
-        window.set_cursor_mode(CursorMode::Hidden);
-        // window.set_cursor_mode(CursorMode::Disabled);
+        // window.set_cursor_mode(CursorMode::Hidden);
+        window.set_cursor_mode(CursorMode::Disabled);
         window.make_current();
 
         // window.set_all_polling(true);
